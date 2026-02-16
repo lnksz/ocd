@@ -33,6 +33,27 @@ function ocd --description "run OpenCode in Docker"
         mkdir -p "$host_cache"
     end
 
+    set -l host_data
+    for d in "$xdg_data/opencode" "$xdg_data/opencode-ai"
+        if test -d "$d"
+            set host_data "$d"
+            break
+        end
+    end
+    if test -z "$host_data"
+        set host_data "$xdg_data/opencode"
+        mkdir -p "$host_data"
+    end
+
+    # If a previous container run created the SQLite DB as root (or otherwise non-writable),
+    # OpenCode will fail with "attempt to write a readonly database".
+    set -l host_db "$host_data/opencode.db"
+    if test -e "$host_db"; and not test -w "$host_db"
+        printf 'ocd: %s is not writable (fix ownership/permissions, e.g. sudo chown %s:%s %s*)\n' \
+            "$host_db" (id -u) (id -g) "$host_db" 1>&2
+        return 1
+    end
+
     # Optional auth mounts so providers (eg GitHub/Copilot) work inside the container.
     set -l extra_mounts
     set -l mount_pairs \
@@ -62,6 +83,7 @@ function ocd --description "run OpenCode in Docker"
         -v "$pwd_real:$pwd_real" \
         -v "$host_cfg:/tmp/home/.config/opencode" \
         -v "$host_cache:/tmp/home/.cache/opencode" \
+        -v "$host_data:/tmp/home/.local/share/opencode" \
         $extra_mounts \
         $image \
         opencode-ai $argv
