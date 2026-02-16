@@ -1,0 +1,33 @@
+# Editor/OS cruft
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDEs
+.idea/
+.vscode/
+
+# Env files (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Common build artifacts (if added later)
+dist/
+build/
+target/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+node_modules/
+
+# Local direnv state
+.direnv/
