@@ -112,7 +112,8 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     && pipx install mypy \
     && pipx install cmake-language-server \
     && pipx install ansible \
-    && pipx install ansible-lint
+    && pipx install ansible-lint \
+    && pipx install uv
 
 # ---- Go LSP + linters/formatters ----
 ENV GOPATH=/opt/go
