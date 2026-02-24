@@ -1,6 +1,21 @@
-function ocd --description "run OpenCode in Docker"
-    # Override with `set -x OCD_IMAGE yourtag`.
-    set -l image (set -q OCD_IMAGE; and echo $OCD_IMAGE; or echo "lnksz/ocd:latest")
+function ocd --description "run OpenCode in Docker/Podman"
+    # Container engine and image override:
+    # - `set -x OCD_ENGINE podman|docker`
+    # - `set -x OCD_IMAGE docker.io/lnksz/ocd:latest`
+    set -l engine
+    if set -q OCD_ENGINE
+        set engine $OCD_ENGINE
+    else if command -sq docker
+        set engine docker
+    else if command -sq podman
+        set engine podman
+    else
+        printf 'ocd: neither docker nor podman found in PATH\n' 1>&2
+        return 127
+    end
+
+    # Default includes registry so Podman won't rewrite to `localhost/...`.
+    set -l image (set -q OCD_IMAGE; and echo $OCD_IMAGE; or echo "docker.io/lnksz/ocd:latest")
     set -l pwd_real (pwd)
 
     # Host XDG paths with fallbacks
@@ -71,7 +86,7 @@ function ocd --description "run OpenCode in Docker"
         end
     end
 
-    docker run --rm -it \
+    $engine run --rm -it \
         --init \
         --user (id -u):(id -g) \
         -e HOST_USER=(whoami) \

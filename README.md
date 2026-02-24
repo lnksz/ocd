@@ -22,12 +22,19 @@ source /path/to/ocd.fish
 ocd
 ```
 
-By default it uses the image `lnksz/ocd:latest`.
+By default it uses the image `docker.io/lnksz/ocd:latest`.
 
 Override the image:
 
 ```fish
 set -x OCD_IMAGE ocd:dev
+ocd
+```
+
+Use Podman instead of Docker:
+
+```fish
+set -x OCD_ENGINE podman
 ocd
 ```
 
@@ -37,6 +44,12 @@ Local build:
 
 ```bash
 docker build -t ocd:dev .
+```
+
+Podman build:
+
+```bash
+podman build -t ocd:dev .
 ```
 
 Smoke-run:
@@ -54,9 +67,21 @@ Build and tag to match the resolved OpenCode version:
 ./build-image.sh 0.7.3
 ```
 
+With Podman (or explicit engine selection):
+
+```bash
+OCD_ENGINE=podman ./build-image.sh latest
+```
+
 This tags:
-- `lnksz/ocd:<resolved_version>`
-- `lnksz/ocd:latest`
+- `docker.io/lnksz/ocd:<resolved_version>`
+- `docker.io/lnksz/ocd:latest`
+
+If you want to push to a registry:
+
+```bash
+./build-image.sh --push latest
+```
 
 ## Auth/config persistence
 
