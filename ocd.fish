@@ -20,8 +20,8 @@ function ocd --description "run OpenCode in Docker/Podman"
 
     # Host XDG paths with fallbacks
     set -l xdg_config (set -q XDG_CONFIG_HOME; and echo $XDG_CONFIG_HOME; or echo "$HOME/.config")
-    set -l xdg_cache  (set -q XDG_CACHE_HOME;  and echo $XDG_CACHE_HOME;  or echo "$HOME/.cache")
-    set -l xdg_data   (set -q XDG_DATA_HOME;   and echo $XDG_DATA_HOME;   or echo "$HOME/.local/share")
+    set -l xdg_cache (set -q XDG_CACHE_HOME;  and echo $XDG_CACHE_HOME;  or echo "$HOME/.cache")
+    set -l xdg_data (set -q XDG_DATA_HOME;   and echo $XDG_DATA_HOME;   or echo "$HOME/.local/share")
 
     # OpenCode host dirs (naming varies by version)
     set -l host_cfg
@@ -86,6 +86,10 @@ function ocd --description "run OpenCode in Docker/Podman"
         end
     end
 
+    set -l stty_state (stty -g 2>/dev/null)
+    set -l stty_state_status $status
+    stty susp undef 2>/dev/null
+
     $engine run --rm -it \
         --init \
         --user (id -u):(id -g) \
@@ -102,4 +106,12 @@ function ocd --description "run OpenCode in Docker/Podman"
         $extra_mounts \
         $image \
         opencode-ai $argv
+
+    set -l exit_status $status
+    if test $stty_state_status -eq 0; and test -n "$stty_state"
+        stty "$stty_state" 2>/dev/null
+    else
+        stty sane 2>/dev/null
+    end
+    return $exit_status
 end
