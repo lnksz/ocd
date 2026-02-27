@@ -15,7 +15,12 @@ function ocd --description "run OpenCode in Docker/Podman"
     end
 
     # Default includes registry so Podman won't rewrite to `localhost/...`.
-    set -l image (set -q OCD_IMAGE; and echo $OCD_IMAGE; or echo "docker.io/lnksz/ocd:latest")
+    set -l image
+    if set -q OCD_IMAGE; and test -n "$OCD_IMAGE"
+        set image $OCD_IMAGE
+    else
+        set image docker.io/lnksz/ocd:latest
+    end
     set -l pwd_real (pwd)
 
     # Host XDG paths with fallbacks
@@ -103,6 +108,17 @@ function ocd --description "run OpenCode in Docker/Podman"
     set -l stty_state_status $status
     stty susp undef 2>/dev/null
 
+    set -l cmd opencode-ai
+    set -l cmd_args $argv
+    if test (count $argv) -gt 0; and begin; test "$argv[1]" = "--shell"; or test "$argv[1]" = "-s"; end
+        set cmd fish
+        if test (count $argv) -gt 1
+            set cmd_args $argv[2..-1]
+        else
+            set cmd_args
+        end
+    end
+
     $engine run --rm -it \
         --init \
         --user (id -u):(id -g) \
@@ -121,7 +137,7 @@ function ocd --description "run OpenCode in Docker/Podman"
         -v "$host_data:/tmp/home/.local/share/opencode-ai" \
         $extra_mounts \
         $image \
-        opencode-ai $argv
+        $cmd $cmd_args
 
     set -l exit_status $status
     if test $stty_state_status -eq 0; and test -n "$stty_state"
