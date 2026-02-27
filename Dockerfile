@@ -15,7 +15,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl wget openssl \
       git git-lfs openssh-client \
-      bash fish \
+      bash fish sudo \
       jq ripgrep fd-find fzf \
       unzip zip xz-utils \
       procps psmisc \
@@ -51,7 +51,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && ln -sf /usr/bin/fdfind /usr/local/bin/fd \
     && if command -v batcat >/dev/null 2>&1; then ln -sf "$(command -v batcat)" /usr/local/bin/bat; fi \
     && if command -v bat >/dev/null 2>&1; then ln -sf "$(command -v bat)" /usr/local/bin/bat; fi \
-    && apt-get clean
+    && apt-get clean \
+    && printf 'ALL ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/99-nopasswd \
+    && chmod 0440 /etc/sudoers.d/99-nopasswd
 
 # Pre-create synthetic HOME so bind-mounts don't become root-owned.
 # Docker creates missing mount targets as root:root, which breaks running with `--user`.
