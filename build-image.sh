@@ -12,46 +12,51 @@ set -euo pipefail
 # - Override with `OCD_IMAGE_REPO=registry.example.com/namespace/ocd`.
 #
 # Usage:
-#   ./build-image.sh [--push] [opencode_version_or_dist_tag]
+#   ./build-image.sh [--push] [--no-cache] [opencode_version_or_dist_tag]
 #
 # Examples:
 #   ./build-image.sh latest
 #   ./build-image.sh 0.7.3
 #   ./build-image.sh --push latest
+#   ./build-image.sh --no-cache latest
 
 pkg="${OPENCODE_PKG:-opencode-ai}"
 
 push_images=0
+no_cache=0
 requested_version=""
 
 for arg in "$@"; do
-    case "$arg" in
-        --push)
-            push_images=1
-            ;;
-        *)
-            if [[ -z "$requested_version" ]]; then
-                requested_version="$arg"
-            else
-                printf 'Unknown argument: %s\n' "$arg" >&2
-                exit 2
-            fi
-            ;;
-    esac
+	case "$arg" in
+	--push)
+		push_images=1
+		;;
+	--no-cache)
+		no_cache=1
+		;;
+	*)
+		if [[ -z "$requested_version" ]]; then
+			requested_version="$arg"
+		else
+			printf 'Unknown argument: %s\n' "$arg" >&2
+			exit 2
+		fi
+		;;
+	esac
 done
 
 requested_version="${requested_version:-${OPENCODE_VERSION:-latest}}"
 
 engine="${OCD_ENGINE:-${CONTAINER_ENGINE:-}}"
 if [[ -z "$engine" ]]; then
-    if command -v docker >/dev/null 2>&1; then
-        engine="docker"
-    elif command -v podman >/dev/null 2>&1; then
-        engine="podman"
-    else
-        printf 'Neither docker nor podman found in PATH\n' >&2
-        exit 127
-    fi
+	if command -v docker >/dev/null 2>&1; then
+		engine="docker"
+	elif command -v podman >/dev/null 2>&1; then
+		engine="podman"
+	else
+		printf 'Neither docker nor podman found in PATH\n' >&2
+		exit 127
+	fi
 fi
 
 image_repo="${OCD_IMAGE_REPO:-docker.io/lnksz/ocd}"
@@ -74,6 +79,7 @@ tag_latest="${image_repo}:latest"
 printf 'Building %s (OpenCode %s@%s -> %s)\n' "$tag_version" "$pkg" "$requested_version" "$resolved_version" >&2
 
 "$engine" build \
+	${no_cache:+--no-cache} \
 	--build-arg OPENCODE_PKG="$pkg" \
 	--build-arg OPENCODE_VERSION="$resolved_version" \
 	--label org.opencontainers.image.title="lnksz/ocd" \
