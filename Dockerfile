@@ -52,8 +52,24 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && if command -v batcat >/dev/null 2>&1; then ln -sf "$(command -v batcat)" /usr/local/bin/bat; fi \
     && if command -v bat >/dev/null 2>&1; then ln -sf "$(command -v bat)" /usr/local/bin/bat; fi \
     && apt-get clean \
+    && if ! id _apt >/dev/null 2>&1; then useradd -r -u 42 -d /nonexistent -s /usr/sbin/nologin _apt; fi \
+    && printf 'Defaults env_keep += "NSS_WRAPPER_PASSWD NSS_WRAPPER_GROUP NSS_WRAPPER_SHADOW"\n' > /etc/sudoers.d/00-nss-wrapper \
+    && printf 'Defaults pam_service=ocd-sudo\n' >> /etc/sudoers.d/00-nss-wrapper \
     && printf 'ALL ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/99-nopasswd \
-    && chmod 0440 /etc/sudoers.d/99-nopasswd
+    && chmod 0440 /etc/sudoers.d/00-nss-wrapper /etc/sudoers.d/99-nopasswd \
+    && printf '%s\n' \
+      '#%PAM-1.0' \
+      '' \
+      'auth    sufficient  pam_permit.so' \
+      'account sufficient  pam_permit.so' \
+      '' \
+      'session required    pam_limits.so' \
+      'session required    pam_env.so readenv=1 user_readenv=0' \
+      'session required    pam_env.so readenv=1 envfile=/etc/default/locale user_readenv=0' \
+      > /etc/pam.d/ocd-sudo \
+    && multiarch="$(dpkg-architecture -qDEB_HOST_MULTIARCH)" \
+    && nss_lib="/lib/${multiarch}/libnss_wrapper.so" \
+    && if [ -r "$nss_lib" ]; then printf '%s\n' "$nss_lib" > /etc/ld.so.preload; fi
 
 # Pre-create synthetic HOME so bind-mounts don't become root-owned.
 # Docker creates missing mount targets as root:root, which breaks running with `--user`.

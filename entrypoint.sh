@@ -19,6 +19,7 @@ GID_NOW="$(id -g)"
 # nss_wrapper setup
 PASSWD_FILE="$HOME/.passwd"
 GROUP_FILE="$HOME/.group"
+SHADOW_FILE="$HOME/.shadow"
 
 # Use a real shell path in passwd entry; fish may not be present in minimal images, but we have it.
 SHELL_PATH="${SHELL:-/usr/bin/fish}"
@@ -33,10 +34,35 @@ SHELL_PATH="${SHELL:-/usr/bin/fish}"
 	printf 'root:x:0:\n'
 	printf '%s:x:%s:\n' "hostgrp" "$GID_NOW"
 } >"$GROUP_FILE"
+shadow_hash="!"
+if command -v openssl >/dev/null 2>&1; then
+	shadow_hash="$(openssl passwd -6 -salt opencode opencode)"
+fi
+{
+	# Format: name:passwd:lastchg:min:max:warn:inactive:expire:reserved
+	printf 'root:*:1:0:99999:7:::\n'
+	printf '%s:%s:1:0:99999:7:::\n' "$HOST_USER" "$shadow_hash"
+} >"$SHADOW_FILE"
 
-export NSS_WRAPPER_PASSWD="$PASSWD_FILE"
-export NSS_WRAPPER_GROUP="$GROUP_FILE"
-export LD_PRELOAD="libnss_wrapper.so"
+chmod 0600 "$PASSWD_FILE" "$GROUP_FILE" "$SHADOW_FILE" 2>/dev/null || true
+
+NSS_WRAPPER_LIB=""
+for lib in /lib/*/libnss_wrapper.so /usr/lib/*/libnss_wrapper.so /lib/libnss_wrapper.so /usr/lib/libnss_wrapper.so; do
+	if [ -r "$lib" ]; then
+		NSS_WRAPPER_LIB="$lib"
+		break
+	fi
+done
+
+if [ -n "$NSS_WRAPPER_LIB" ]; then
+	export NSS_WRAPPER_PASSWD="$PASSWD_FILE"
+	export NSS_WRAPPER_GROUP="$GROUP_FILE"
+	export NSS_WRAPPER_SHADOW="$SHADOW_FILE"
+	export LD_PRELOAD="${NSS_WRAPPER_LIB}${LD_PRELOAD:+:$LD_PRELOAD}"
+	if [ ! -f /etc/ld.so.preload ]; then
+		printf '%s\n' "$NSS_WRAPPER_LIB" >/etc/ld.so.preload 2>/dev/null || true
+	fi
+fi
 
 # Also set common identity env vars for tools that read them
 export USER="$HOST_USER"
