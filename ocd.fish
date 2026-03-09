@@ -74,14 +74,16 @@ function ocd --description "run OpenCode in Docker/Podman"
         return 1
     end
 
-    # Optional auth mounts so providers (eg GitHub/Copilot) work inside the container.
+    # Optional mounts for provider auth and extra OpenCode config.
     set -l extra_mounts
     set -l mount_pairs \
         "$xdg_config/gh:/tmp/home/.config/gh" \
         "$xdg_cache/gh:/tmp/home/.cache/gh" \
         "$xdg_config/github-copilot:/tmp/home/.config/github-copilot" \
         "$xdg_cache/github-copilot:/tmp/home/.cache/github-copilot" \
-        "$xdg_data/github-copilot:/tmp/home/.local/share/github-copilot"
+        "$xdg_data/github-copilot:/tmp/home/.local/share/github-copilot" \
+        "$xdg_config/opencode/agents:/tmp/home/.config/opencode/agents" \
+        "$xdg_config/opencode/agents:/tmp/home/.config/opencode-ai/agents"
 
     for pair in $mount_pairs
         set -l parts (string split -m1 : -- $pair)

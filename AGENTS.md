@@ -56,6 +56,12 @@ Fish (`ocd.fish`):
 fish -n ocd.fish
 ```
 
+Smoke-check optional agents mount:
+```bash
+mkdir -p ~/.config/opencode/agents
+fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "test -d /tmp/home/.config/opencode/agents"'
+```
+
 ### “Tests”
 
 No unit tests are present. Treat these as the test suite:
@@ -115,6 +121,7 @@ Formatting:
 - Quote paths; assume spaces in working directories.
 - Keep Docker args readable (one flag per line is preferred for long runs).
 - The function should remain a thin wrapper; complex logic belongs in scripts.
+- Keep optional mounts narrowly scoped; mount `~/.config/opencode/agents` only when it exists.
 
 ### Dockerfile
 
