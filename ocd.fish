@@ -28,42 +28,14 @@ function ocd --description "run OpenCode in Docker/Podman"
     set -l xdg_cache (set -q XDG_CACHE_HOME;  and echo $XDG_CACHE_HOME;  or echo "$HOME/.cache")
     set -l xdg_data (set -q XDG_DATA_HOME;   and echo $XDG_DATA_HOME;   or echo "$HOME/.local/share")
 
-    # OpenCode host dirs (naming varies by version)
-    set -l host_cfg
-    for d in "$xdg_config/opencode" "$xdg_config/opencode-ai"
-        if test -d "$d"
-            set host_cfg "$d"
-            break
-        end
-    end
-    if test -z "$host_cfg"
-        set host_cfg "$xdg_config/opencode"
-        mkdir -p "$host_cfg"
-    end
+    set -l host_cfg "$xdg_config/opencode"
+    mkdir -p "$host_cfg"
 
-    set -l host_cache
-    for d in "$xdg_cache/opencode" "$xdg_cache/opencode-ai"
-        if test -d "$d"
-            set host_cache "$d"
-            break
-        end
-    end
-    if test -z "$host_cache"
-        set host_cache "$xdg_cache/opencode"
-        mkdir -p "$host_cache"
-    end
+    set -l host_cache "$xdg_cache/opencode"
+    mkdir -p "$host_cache"
 
-    set -l host_data
-    for d in "$xdg_data/opencode" "$xdg_data/opencode-ai"
-        if test -d "$d"
-            set host_data "$d"
-            break
-        end
-    end
-    if test -z "$host_data"
-        set host_data "$xdg_data/opencode"
-        mkdir -p "$host_data"
-    end
+    set -l host_data "$xdg_data/opencode"
+    mkdir -p "$host_data"
 
     # If a previous container run created the SQLite DB as root (or otherwise non-writable),
     # OpenCode will fail with "attempt to write a readonly database".
@@ -82,8 +54,7 @@ function ocd --description "run OpenCode in Docker/Podman"
         "$xdg_config/github-copilot:/tmp/home/.config/github-copilot" \
         "$xdg_cache/github-copilot:/tmp/home/.cache/github-copilot" \
         "$xdg_data/github-copilot:/tmp/home/.local/share/github-copilot" \
-        "$xdg_config/opencode/agents:/tmp/home/.config/opencode/agents" \
-        "$xdg_config/opencode/agents:/tmp/home/.config/opencode-ai/agents"
+        "$xdg_config/opencode/agents:/tmp/home/.config/opencode/agents"
 
     for pair in $mount_pairs
         set -l parts (string split -m1 : -- $pair)
@@ -101,7 +72,6 @@ function ocd --description "run OpenCode in Docker/Podman"
             if test -n "$cfg_target"
                 set -l cfg_base (basename -- "$cfg_file")
                 set extra_mounts $extra_mounts -v "$cfg_target:/tmp/home/.config/opencode/$cfg_base:ro"
-                set extra_mounts $extra_mounts -v "$cfg_target:/tmp/home/.config/opencode-ai/$cfg_base:ro"
             end
         end
     end
@@ -110,7 +80,7 @@ function ocd --description "run OpenCode in Docker/Podman"
     set -l stty_state_status $status
     stty susp undef 2>/dev/null
 
-    set -l cmd opencode-ai
+    set -l cmd opencode
     set -l cmd_args $argv
     if test (count $argv) -gt 0; and begin; test "$argv[1]" = "--shell"; or test "$argv[1]" = "-s"; end
         set cmd fish
@@ -132,11 +102,8 @@ function ocd --description "run OpenCode in Docker/Podman"
         -w "$pwd_real" \
         -v "$pwd_real:$pwd_real" \
         -v "$host_cfg:/tmp/home/.config/opencode" \
-        -v "$host_cfg:/tmp/home/.config/opencode-ai" \
         -v "$host_cache:/tmp/home/.cache/opencode" \
-        -v "$host_cache:/tmp/home/.cache/opencode-ai" \
         -v "$host_data:/tmp/home/.local/share/opencode" \
-        -v "$host_data:/tmp/home/.local/share/opencode-ai" \
         $extra_mounts \
         $image \
         $cmd $cmd_args

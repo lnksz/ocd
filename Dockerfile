@@ -89,12 +89,11 @@ RUN set -euo pipefail; \
     curl -fsSL "$url" -o /usr/local/bin/hadolint; \
     chmod +x /usr/local/bin/hadolint
 
-# ---- opencode-ai (adjust package name/version if needed) ----
+# ---- opencode (adjust package name/version if needed) ----
 ARG OPENCODE_PKG=opencode-ai
 ARG OPENCODE_VERSION=latest
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
-    npm install -g "${OPENCODE_PKG}@${OPENCODE_VERSION}" \
-    && if [ -x /usr/local/bin/opencode ] && [ ! -e /usr/local/bin/opencode-ai ]; then ln -s /usr/local/bin/opencode /usr/local/bin/opencode-ai; fi
+    npm install -g "${OPENCODE_PKG}@${OPENCODE_VERSION}"
 
 # ---- Node toolchain + LSPs + linters ----
 # corepack gives you pnpm/yarn in a versioned, reproducible way

@@ -6,7 +6,7 @@ This repo contains:
 - `Dockerfile`: the dev image ("everything included" tooling)
 - `entrypoint.sh`: sets up HOME/XDG + `nss_wrapper` for arbitrary `--user UID:GID`
 - `ocd.fish`: Fish wrapper function to run the container
-- `build-image.sh`: build + tag images to match the published `opencode-ai` version
+- `build-image.sh`: build + tag images to match the published `opencode` version
 
 ## Quick start (Fish)
 
@@ -88,7 +88,7 @@ If you want to push to a registry:
 `ocd.fish` mounts host config/cache into the container under `/tmp/home` so OpenCode + GitHub tooling can reuse your login state when available.
 
 Currently it mounts (if present):
-- OpenCode: `opencode/` and/or `opencode-ai/` under XDG config/cache
+- OpenCode: `opencode/` under XDG config/cache/data
 - GitHub CLI: `gh/` under XDG config/cache
 - GitHub Copilot: `github-copilot/` under XDG config/cache/data
 
