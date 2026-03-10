@@ -122,6 +122,7 @@ Formatting:
 - Keep Docker args readable (one flag per line is preferred for long runs).
 - The function should remain a thin wrapper; complex logic belongs in scripts.
 - Keep optional mounts narrowly scoped; mount `~/.config/opencode/agents` only when it exists.
+- For plain `ocd` runs, prefer a narrow TUI config override over tty signal hacks when working around OpenCode keybind behavior.
 
 ### Dockerfile
 

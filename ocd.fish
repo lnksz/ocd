@@ -76,19 +76,37 @@ function ocd --description "run OpenCode in Docker/Podman"
         end
     end
 
-    set -l stty_state (stty -g 2>/dev/null)
-    set -l stty_state_status $status
-    stty susp undef 2>/dev/null
-
+    set -l is_shell_mode 0
     set -l cmd opencode
     set -l cmd_args $argv
     if test (count $argv) -gt 0; and begin; test "$argv[1]" = "--shell"; or test "$argv[1]" = "-s"; end
+        set is_shell_mode 1
         set cmd fish
         if test (count $argv) -gt 1
             set cmd_args $argv[2..-1]
         else
             set cmd_args
         end
+    end
+
+    set -l override_mounts
+    set -l override_env
+    set -l tui_override_dir
+    if test $is_shell_mode -eq 0
+        set tui_override_dir (mktemp -d 2>/dev/null)
+        if test -z "$tui_override_dir"
+            printf 'ocd: failed to create temporary TUI config directory\n' 1>&2
+            return 1
+        end
+
+        if not printf '%s\n' '{"keybinds":{"terminal_suspend":"none"}}' > "$tui_override_dir/tui.json"
+            rm -rf "$tui_override_dir"
+            printf 'ocd: failed to write temporary TUI config\n' 1>&2
+            return 1
+        end
+
+        set override_mounts -v "$tui_override_dir:/tmp/home/.config/opencode-ocd:ro"
+        set override_env -e OPENCODE_CONFIG_DIR=/tmp/home/.config/opencode-ocd
     end
 
     $engine run --rm -it \
@@ -105,14 +123,14 @@ function ocd --description "run OpenCode in Docker/Podman"
         -v "$host_cache:/tmp/home/.cache/opencode" \
         -v "$host_data:/tmp/home/.local/share/opencode" \
         $extra_mounts \
+        $override_mounts \
+        $override_env \
         $image \
         $cmd $cmd_args
 
     set -l exit_status $status
-    if test $stty_state_status -eq 0; and test -n "$stty_state"
-        stty "$stty_state" 2>/dev/null
-    else
-        stty sane 2>/dev/null
+    if test -n "$tui_override_dir"; and test -d "$tui_override_dir"
+        rm -rf "$tui_override_dir"
     end
     return $exit_status
 end

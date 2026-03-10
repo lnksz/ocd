@@ -38,6 +38,8 @@ set -x OCD_ENGINE podman
 ocd
 ```
 
+For plain `ocd`, the wrapper injects a temporary TUI override that disables OpenCode's built-in `Ctrl+Z` suspend binding to avoid wedging the host tty. `ocd --shell` is left unchanged.
+
 ## Build
 
 Local build:
