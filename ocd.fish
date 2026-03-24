@@ -37,6 +37,63 @@ function ocd --description "run OpenCode in Docker/Podman"
     set -l host_data "$xdg_data/opencode"
     mkdir -p "$host_data"
 
+    set -l default_cpu_percent 60
+    set -l default_memory_percent 60
+
+    set -l cpu_limit
+    if set -q OCD_CPUS; and test -n "$OCD_CPUS"
+        set cpu_limit $OCD_CPUS
+    else
+        set -l cpu_percent $default_cpu_percent
+        if set -q OCD_CPU_PERCENT; and test -n "$OCD_CPU_PERCENT"
+            set cpu_percent $OCD_CPU_PERCENT
+        end
+
+        if not string match -rq '^(100(\.0+)?|([1-9][0-9]?(\.[0-9]+)?)|(0\.[0-9]*[1-9][0-9]*))$' -- "$cpu_percent"
+            printf 'ocd: OCD_CPU_PERCENT must be a number between 0 and 100\n' 1>&2
+            return 1
+        end
+
+        set -l host_cpus (nproc)
+        if not string match -rq '^[0-9]+$' -- "$host_cpus"
+            printf 'ocd: failed to determine host CPU count\n' 1>&2
+            return 1
+        end
+
+        set cpu_limit (math "$host_cpus * $cpu_percent / 100")
+    end
+
+    set -l memory_limit
+    if set -q OCD_MEMORY; and test -n "$OCD_MEMORY"
+        set memory_limit $OCD_MEMORY
+    else
+        set -l memory_percent $default_memory_percent
+        if set -q OCD_MEMORY_PERCENT; and test -n "$OCD_MEMORY_PERCENT"
+            set memory_percent $OCD_MEMORY_PERCENT
+        end
+
+        if not string match -rq '^(100(\.0+)?|([1-9][0-9]?(\.[0-9]+)?)|(0\.[0-9]*[1-9][0-9]*))$' -- "$memory_percent"
+            printf 'ocd: OCD_MEMORY_PERCENT must be a number between 0 and 100\n' 1>&2
+            return 1
+        end
+
+        if not read -l mem_label mem_total_kb mem_unit < /proc/meminfo
+            printf 'ocd: failed to read /proc/meminfo\n' 1>&2
+            return 1
+        end
+
+        if test "$mem_label" != 'MemTotal:'; or not string match -rq '^[0-9]+$' -- "$mem_total_kb"; or test "$mem_unit" != 'kB'
+            printf 'ocd: failed to determine host memory size\n' 1>&2
+            return 1
+        end
+
+        set memory_limit (math "floor($mem_total_kb * 1024 * $memory_percent / 100)")
+    end
+
+    set -l resource_flags \
+        --cpus="$cpu_limit" \
+        --memory="$memory_limit"
+
     # If a previous container run created the SQLite DB as root (or otherwise non-writable),
     # OpenCode will fail with "attempt to write a readonly database".
     set -l host_db "$host_data/opencode.db"
@@ -112,6 +169,7 @@ function ocd --description "run OpenCode in Docker/Podman"
     $engine run --rm -it \
         --init \
         --user (id -u):(id -g) \
+        $resource_flags \
         -e HOST_USER=(whoami) \
         -e HOME=/tmp/home \
         -e XDG_CONFIG_HOME=/tmp/home/.config \

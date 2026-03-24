@@ -62,6 +62,11 @@ mkdir -p ~/.config/opencode/agents
 fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "test -d /tmp/home/.config/opencode/agents"'
 ```
 
+Smoke-check computed resource limits:
+```bash
+fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "nproc >/dev/null && test -n \"$(cat /sys/fs/cgroup/memory.max 2>/dev/null || true)\""'
+```
+
 ### “Tests”
 
 No unit tests are present. Treat these as the test suite:
@@ -122,6 +127,7 @@ Formatting:
 - Keep Docker args readable (one flag per line is preferred for long runs).
 - The function should remain a thin wrapper; complex logic belongs in scripts.
 - Keep optional mounts narrowly scoped; mount `~/.config/opencode/agents` only when it exists.
+- Default resource limits are relative to the host (`60%` CPU and `60%` RAM); keep absolute overrides simple and predictable.
 - For plain `ocd` runs, prefer a narrow TUI config override over tty signal hacks when working around OpenCode keybind behavior.
 
 ### Dockerfile

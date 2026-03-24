@@ -24,6 +24,8 @@ ocd
 
 By default it uses the image `docker.io/lnksz/ocd:latest`.
 
+By default the wrapper also limits the container to `60%` of host CPU capacity and `60%` of host RAM.
+
 Override the image:
 
 ```fish
@@ -37,6 +39,35 @@ Use Podman instead of Docker:
 set -x OCD_ENGINE podman
 ocd
 ```
+
+## Resource limits
+
+`ocd.fish` computes container limits from the host by default:
+
+- CPU: `60%` of host CPU capacity via `--cpus`
+- RAM: `60%` of host memory via `--memory`
+
+Override the percentages:
+
+```fish
+set -x OCD_CPU_PERCENT 50
+set -x OCD_MEMORY_PERCENT 80
+ocd
+```
+
+Override with absolute engine values instead:
+
+```fish
+set -x OCD_CPUS 2.5
+set -x OCD_MEMORY 8g
+ocd
+```
+
+Precedence is:
+
+- `OCD_CPUS` over `OCD_CPU_PERCENT`
+- `OCD_MEMORY` over `OCD_MEMORY_PERCENT`
+- otherwise the built-in `60%` defaults
 
 For plain `ocd`, the wrapper injects a temporary TUI override that disables OpenCode's built-in `Ctrl+Z` suspend binding to avoid wedging the host tty. `ocd --shell` is left unchanged.
 
