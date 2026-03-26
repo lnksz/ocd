@@ -89,6 +89,22 @@ RUN set -euo pipefail; \
     curl -fsSL "$url" -o /usr/local/bin/hadolint; \
     chmod +x /usr/local/bin/hadolint
 
+# ---- RTK (token-saving shell proxy for OpenCode) ----
+ARG RTK_VERSION=v0.33.1
+RUN set -euo pipefail; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+        amd64) rtk_target=x86_64-unknown-linux-musl ;; \
+        arm64) rtk_target=aarch64-unknown-linux-gnu ;; \
+        *) echo "Unsupported arch for rtk: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/rtk-ai/rtk/releases/download/${RTK_VERSION}/rtk-${rtk_target}.tar.gz" -o /tmp/rtk.tar.gz; \
+    tar -xzf /tmp/rtk.tar.gz -C /usr/local/bin rtk; \
+    chmod +x /usr/local/bin/rtk; \
+    install -d /usr/local/share/rtk; \
+    curl -fsSL "https://raw.githubusercontent.com/rtk-ai/rtk/${RTK_VERSION}/hooks/opencode-rtk.ts" -o /usr/local/share/rtk/opencode-rtk.ts; \
+    rm -f /tmp/rtk.tar.gz
+
 # ---- opencode (adjust package name/version if needed) ----
 ARG OPENCODE_PKG=opencode-ai
 ARG OPENCODE_VERSION=latest

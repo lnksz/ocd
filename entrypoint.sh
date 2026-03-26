@@ -68,6 +68,16 @@ fi
 export USER="$HOST_USER"
 export LOGNAME="$HOST_USER"
 
+# Seed the RTK OpenCode plugin after bind mounts are in place.
+rtk_plugin_template="/usr/local/share/rtk/opencode-rtk.ts"
+rtk_plugin_dir="$XDG_CONFIG_HOME/opencode/plugins"
+rtk_plugin_path="$rtk_plugin_dir/rtk.ts"
+if [ -r "$rtk_plugin_template" ]; then
+	if ! mkdir -p "$rtk_plugin_dir" || ! install -m 0644 "$rtk_plugin_template" "$rtk_plugin_path"; then
+		printf 'warning: failed to install RTK plugin at %s\n' "$rtk_plugin_path" >&2
+	fi
+fi
+
 # ---- Git safe.directory handling ----
 # If we're exactly at the root of a git repo, mark it safe (avoid "dubious ownership")
 if command -v git >/dev/null 2>&1; then

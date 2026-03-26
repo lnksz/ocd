@@ -31,6 +31,14 @@ docker build \
   .
 ```
 
+Override the bundled RTK version if needed:
+```bash
+docker build \
+  --build-arg RTK_VERSION=v0.33.1 \
+  -t ocd:dev \
+  .
+```
+
 Smoke-run the image:
 ```bash
 docker run --rm -it ocd:dev fish
@@ -65,6 +73,11 @@ fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "test -d /
 Smoke-check computed resource limits:
 ```bash
 fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "nproc >/dev/null && test -n \"$(cat /sys/fs/cgroup/memory.max 2>/dev/null || true)\""'
+```
+
+Smoke-check RTK wiring:
+```bash
+fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "command -v rtk >/dev/null && test -f /tmp/home/.config/opencode/plugins/rtk.ts"'
 ```
 
 ### “Tests”
@@ -140,6 +153,7 @@ Formatting:
   - use `pip --no-cache-dir`
 - Prefer `ARG` for build-time configuration and `ENV` for runtime defaults.
 - Group installs into logical layers (already done). Avoid churn that invalidates cache unnecessarily.
+- Keep the bundled RTK plugin template in sync with the pinned `RTK_VERSION` release.
 
 ### Imports / Modules
 

@@ -8,6 +8,8 @@ This repo contains:
 - `ocd.fish`: Fish wrapper function to run the container
 - `build-image.sh`: build + tag images to match the published `opencode` version
 
+The image also bundles [`rtk`](https://github.com/rtk-ai/rtk) and seeds the OpenCode plugin at container startup, so shell tool calls can be transparently rewritten through RTK.
+
 ## Quick start (Fish)
 
 1) Load the function:
@@ -125,6 +127,8 @@ Currently it mounts (if present):
 - GitHub CLI: `gh/` under XDG config/cache
 - GitHub Copilot: `github-copilot/` under XDG config/cache/data
 
+On startup, `entrypoint.sh` also installs the RTK OpenCode plugin to `opencode/plugins/rtk.ts` inside the mounted config dir so OpenCode can use `rtk rewrite` automatically.
+
 ## Lint ("tests")
 
 No unit tests. Treat these as checks:
@@ -133,6 +137,13 @@ No unit tests. Treat these as checks:
 hadolint Dockerfile
 shellcheck entrypoint.sh
 fish -n ocd.fish
+```
+
+Quick RTK smoke check:
+
+```bash
+docker run --rm -v "$PWD:/work" -w /work ocd:dev bash -lc \
+  'command -v rtk >/dev/null && test -f /usr/local/share/rtk/opencode-rtk.ts'
 ```
 
 If your host does not have these tools, run the checks inside the image:
