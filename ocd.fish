@@ -147,7 +147,6 @@ function ocd --description "run OpenCode in Docker/Podman"
     end
 
     set -l override_mounts
-    set -l override_env
     set -l tui_override_dir
     if test $is_shell_mode -eq 0
         set tui_override_dir (mktemp -d 2>/dev/null)
@@ -162,8 +161,7 @@ function ocd --description "run OpenCode in Docker/Podman"
             return 1
         end
 
-        set override_mounts -v "$tui_override_dir:/tmp/home/.config/opencode-ocd:ro"
-        set override_env -e OPENCODE_CONFIG_DIR=/tmp/home/.config/opencode-ocd
+        set override_mounts -v "$tui_override_dir/tui.json:/tmp/home/.config/opencode/tui.json:ro"
     end
 
     $engine run --rm -it \
@@ -182,7 +180,6 @@ function ocd --description "run OpenCode in Docker/Podman"
         -v "$host_data:/tmp/home/.local/share/opencode" \
         $extra_mounts \
         $override_mounts \
-        $override_env \
         $image \
         $cmd $cmd_args
 
