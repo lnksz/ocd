@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.6
-FROM ubuntu:25.10
+FROM ubuntu:26.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
@@ -8,6 +8,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIPX_HOME=/opt/pipx \
     PIPX_BIN_DIR=/usr/local/bin \
     PIPX_DEFAULT_PYTHON=python3
+
+ARG NODE_VERSION=v24.16.0
 
 # ---- Base + main tools + diagnostics + QoL ----
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -22,7 +24,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       build-essential pkg-config \
       python3 python3-pip python3-venv pipx \
       golang-go \
-      nodejs npm \
       \
       # C/C++ toolchain extras
       gdb lldb \
@@ -67,9 +68,28 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       'session required    pam_env.so readenv=1 user_readenv=0' \
       'session required    pam_env.so readenv=1 envfile=/etc/default/locale user_readenv=0' \
       > /etc/pam.d/ocd-sudo \
-    && multiarch="$(dpkg-architecture -qDEB_HOST_MULTIARCH)" \
-    && nss_lib="/lib/${multiarch}/libnss_wrapper.so" \
-    && if [ -r "$nss_lib" ]; then printf '%s\n' "$nss_lib" > /etc/ld.so.preload; fi
+     && multiarch="$(dpkg-architecture -qDEB_HOST_MULTIARCH)" \
+     && nss_lib="/lib/${multiarch}/libnss_wrapper.so" \
+     && if [ -r "$nss_lib" ]; then printf '%s\n' "$nss_lib" > /etc/ld.so.preload; fi
+
+# ---- Node.js runtime ----
+RUN set -euo pipefail; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+        amd64) node_arch=x64 ;; \
+        arm64) node_arch=arm64 ;; \
+        *) echo "Unsupported arch for Node.js: $arch" >&2; exit 1 ;; \
+    esac; \
+    node_dist="node-${NODE_VERSION}-linux-${node_arch}"; \
+    node_tarball="${node_dist}.tar.xz"; \
+    curl -fsSL "https://nodejs.org/dist/${NODE_VERSION}/${node_dist}.tar.xz" -o /tmp/node.tar.xz; \
+    curl -fsSL "https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt" -o /tmp/SHASUMS256.txt; \
+    expected_sha="$(grep " ${node_tarball}$" /tmp/SHASUMS256.txt | cut -d' ' -f1)"; \
+    printf '%s  %s\n' "$expected_sha" /tmp/node.tar.xz | sha256sum -c -; \
+    tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 --no-same-owner; \
+    rm -f /tmp/node.tar.xz /tmp/SHASUMS256.txt; \
+    node --version; \
+    npm --version
 
 # Pre-create synthetic HOME so bind-mounts don't become root-owned.
 # Docker creates missing mount targets as root:root, which breaks running with `--user`.
@@ -111,14 +131,12 @@ ARG OPENCODE_VERSION=latest
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install -g "${OPENCODE_PKG}@${OPENCODE_VERSION}"
 
-# ---- Node toolchain + LSPs + linters ----
-# corepack gives you pnpm/yarn in a versioned, reproducible way
-RUN corepack enable \
-    && corepack prepare pnpm@latest --activate \
-    && corepack prepare yarn@stable --activate
-
+# ---- Node toolchain + package managers + LSPs + linters ----
+# Install pnpm/yarn directly from npm to avoid corepack's extra Yarn registry lookup.
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install -g \
+      pnpm \
+      @yarnpkg/cli-dist \
       typescript typescript-language-server \
       vscode-langservers-extracted \
       bash-language-server \

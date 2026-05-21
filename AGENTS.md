@@ -31,6 +31,14 @@ docker build \
   .
 ```
 
+Override the bundled Node.js runtime if needed:
+```bash
+docker build \
+  --build-arg NODE_VERSION=v24.16.0 \
+  -t ocd:dev \
+  .
+```
+
 Override the bundled RTK version if needed:
 ```bash
 docker build \
@@ -78,6 +86,11 @@ fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "nproc >/d
 Smoke-check RTK wiring:
 ```bash
 fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "command -v rtk >/dev/null && test -f /tmp/home/.config/opencode/plugins/rtk.ts"'
+```
+
+Smoke-check bundled Node package managers:
+```bash
+docker run --rm ocd:dev bash -lc 'command -v pnpm >/dev/null && command -v yarn >/dev/null'
 ```
 
 ### “Tests”
@@ -145,7 +158,7 @@ Formatting:
 
 ### Dockerfile
 
-- Keep Debian base (`debian:bookworm-slim`) unless there’s a strong reason to change.
+- Keep the Ubuntu LTS base (`ubuntu:26.04`) unless there’s a strong reason to change.
 - Use `apt-get install -y --no-install-recommends` and clean `apt` lists in the same layer.
 - Avoid leaving caches:
   - `apt-get clean && rm -rf /var/lib/apt/lists/*`
@@ -153,6 +166,7 @@ Formatting:
   - use `pip --no-cache-dir`
 - Prefer `ARG` for build-time configuration and `ENV` for runtime defaults.
 - Group installs into logical layers (already done). Avoid churn that invalidates cache unnecessarily.
+- Keep the bundled Node.js runtime pinned via `NODE_VERSION` and verify the downloaded tarball checksum.
 - Keep the bundled RTK plugin template in sync with the pinned `RTK_VERSION` release.
 
 ### Imports / Modules
