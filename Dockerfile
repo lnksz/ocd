@@ -97,7 +97,7 @@ RUN mkdir -p /tmp/home/.config /tmp/home/.cache /tmp/home/.local/share \
     && chmod -R 0777 /tmp/home
 
 # ---- hadolint (not always available in Ubuntu repos) ----
-ARG HADOLINT_VERSION=v2.12.0
+ARG HADOLINT_VERSION=v2.14.0
 RUN set -euo pipefail; \
     arch="$(dpkg --print-architecture)"; \
     case "$arch" in \
@@ -106,7 +106,7 @@ RUN set -euo pipefail; \
         *) echo "Unsupported arch for hadolint: $arch" >&2; exit 1 ;; \
     esac; \
     url="https://github.com/hadolint/hadolint/releases/download/${HADOLINT_VERSION}/hadolint-Linux-${hadolint_arch}"; \
-    curl -fsSL "$url" -o /usr/local/bin/hadolint; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$url" -o /usr/local/bin/hadolint; \
     chmod +x /usr/local/bin/hadolint
 
 # ---- RTK (token-saving shell proxy for OpenCode) ----
@@ -118,11 +118,15 @@ RUN set -euo pipefail; \
         arm64) rtk_target=aarch64-unknown-linux-gnu ;; \
         *) echo "Unsupported arch for rtk: $arch" >&2; exit 1 ;; \
     esac; \
-    curl -fsSL "https://github.com/rtk-ai/rtk/releases/download/${RTK_VERSION}/rtk-${rtk_target}.tar.gz" -o /tmp/rtk.tar.gz; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors \
+        "https://github.com/rtk-ai/rtk/releases/download/${RTK_VERSION}/rtk-${rtk_target}.tar.gz" \
+        -o /tmp/rtk.tar.gz; \
     tar -xzf /tmp/rtk.tar.gz -C /usr/local/bin rtk; \
     chmod +x /usr/local/bin/rtk; \
     install -d /usr/local/share/rtk; \
-    curl -fsSL "https://raw.githubusercontent.com/rtk-ai/rtk/${RTK_VERSION}/hooks/opencode-rtk.ts" -o /usr/local/share/rtk/opencode-rtk.ts; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors \
+        "https://raw.githubusercontent.com/rtk-ai/rtk/${RTK_VERSION}/hooks/opencode-rtk.ts" \
+        -o /usr/local/share/rtk/opencode-rtk.ts; \
     rm -f /tmp/rtk.tar.gz
 
 # ---- opencode (adjust package name/version if needed) ----
