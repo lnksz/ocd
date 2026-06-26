@@ -7,6 +7,7 @@ This repo contains:
 - `entrypoint.sh`: sets up HOME/XDG + `nss_wrapper` for arbitrary `--user UID:GID`
 - `ocd.fish`: Fish wrapper function to run the container
 - `build-image.sh`: build + tag images to match the published `opencode` version
+- `update-tools.sh`: ask OpenCode to refresh pinned Dockerfile tool versions
 
 The image also bundles [`rtk`](https://github.com/rtk-ai/rtk) and seeds the OpenCode plugin at container startup, so shell tool calls can be transparently rewritten through RTK.
 
@@ -102,6 +103,12 @@ Build and tag to match the resolved OpenCode version:
 ./build-image.sh 0.7.3
 ```
 
+Ask OpenCode to update pinned Dockerfile tool versions:
+
+```bash
+./update-tools.sh
+```
+
 With Podman (or explicit engine selection):
 
 ```bash
@@ -136,6 +143,7 @@ No unit tests. Treat these as checks:
 ```bash
 hadolint Dockerfile
 shellcheck entrypoint.sh
+shellcheck update-tools.sh
 fish -n ocd.fish
 ```
 
@@ -150,5 +158,5 @@ If your host does not have these tools, run the checks inside the image:
 
 ```bash
 docker run --rm -v "$PWD:/work" -w /work ocd:dev bash -lc \
-  'hadolint Dockerfile && shellcheck entrypoint.sh && fish -n ocd.fish'
+  'hadolint Dockerfile && shellcheck entrypoint.sh && shellcheck update-tools.sh && fish -n ocd.fish'
 ```

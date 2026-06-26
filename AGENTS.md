@@ -22,6 +22,11 @@ Build and tag to match the resolved OpenCode version:
 ./build-image.sh 0.7.3
 ```
 
+Ask OpenCode to refresh pinned Dockerfile tool versions:
+```bash
+./update-tools.sh
+```
+
 Build with an explicit OpenCode package/version (if you publish variants):
 ```bash
 docker build \
@@ -67,6 +72,16 @@ shellcheck entrypoint.sh
 shfmt -w -i 4 -ci entrypoint.sh
 ```
 
+Bash (`build-image.sh`):
+```bash
+shellcheck build-image.sh
+```
+
+Bash (`update-tools.sh`):
+```bash
+shellcheck update-tools.sh
+```
+
 Fish (`ocd.fish`):
 ```bash
 fish -n ocd.fish
@@ -97,7 +112,29 @@ docker run --rm ocd:dev bash -lc 'command -v pnpm >/dev/null && command -v yarn 
 
 No unit tests are present. Treat these as the test suite:
 ```bash
-hadolint Dockerfile && shellcheck entrypoint.sh && fish -n ocd.fish
+hadolint Dockerfile && shellcheck entrypoint.sh && shellcheck build-image.sh && shellcheck update-tools.sh && fish -n ocd.fish
+```
+
+### GitHub Actions
+
+Docker Hub publishing is handled by `.github/workflows/build-and-push.yml`:
+- Runs daily at 02:00 UTC, which is 04:00 UTC+2.
+- Runs on pushes to `master`.
+- Can be run manually with `workflow_dispatch`.
+- Executes `./build-image.sh --push` after logging in to Docker Hub.
+
+Linting is handled by `.github/workflows/lint.yml`:
+- Runs `hadolint` for `Dockerfile`.
+- Runs `shellcheck` for `build-image.sh`.
+- Runs on pushes, pull requests, and manual dispatch.
+
+Required repository secrets:
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+Workflow syntax check, if `actionlint` is installed:
+```bash
+actionlint .github/workflows/build-and-push.yml .github/workflows/lint.yml
 ```
 
 ### Running a single check (single “test”)
@@ -105,6 +142,8 @@ hadolint Dockerfile && shellcheck entrypoint.sh && fish -n ocd.fish
 Prefer running the narrowest check first:
 - Single Dockerfile lint: `hadolint Dockerfile`
 - Single bash lint: `shellcheck entrypoint.sh`
+- Single build script lint: `shellcheck build-image.sh`
+- Single updater script lint: `shellcheck update-tools.sh`
 - Single fish parse check: `fish -n ocd.fish`
 
 If you add a test suite later, update this file with the exact single-test invocation.
@@ -197,3 +236,8 @@ Not applicable (no Python/TS/Go module structure in this repo). If you add sourc
 
 - Update this file with new commands (build/lint/test) and any new agent rules.
 - Add a quick smoke check command that validates the new behavior.
+
+Smoke check for the OpenCode updater wrapper:
+```bash
+./update-tools.sh --help
+```

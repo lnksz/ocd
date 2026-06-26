@@ -111,6 +111,7 @@ function ocd --description "run OpenCode in Docker/Podman"
         "$xdg_config/github-copilot:/tmp/home/.config/github-copilot" \
         "$xdg_cache/github-copilot:/tmp/home/.cache/github-copilot" \
         "$xdg_data/github-copilot:/tmp/home/.local/share/github-copilot" \
+        "$xdg_config/opencode/commands:/tmp/home/.config/opencode/commands" \
         "$xdg_config/opencode/agents:/tmp/home/.config/opencode/agents"
 
     for pair in $mount_pairs

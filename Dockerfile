@@ -11,7 +11,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 ARG NODE_VERSION=v24.16.0
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 # ---- Base + main tools + diagnostics + QoL ----
+# hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -97,7 +100,7 @@ RUN mkdir -p /tmp/home/.config /tmp/home/.cache /tmp/home/.local/share \
     && chmod -R 0777 /tmp/home
 
 # ---- hadolint (not always available in Ubuntu repos) ----
-ARG HADOLINT_VERSION=v2.12.0
+ARG HADOLINT_VERSION=v2.14.0
 RUN set -euo pipefail; \
     arch="$(dpkg --print-architecture)"; \
     case "$arch" in \
@@ -106,7 +109,7 @@ RUN set -euo pipefail; \
         *) echo "Unsupported arch for hadolint: $arch" >&2; exit 1 ;; \
     esac; \
     url="https://github.com/hadolint/hadolint/releases/download/${HADOLINT_VERSION}/hadolint-Linux-${hadolint_arch}"; \
-    curl -fsSL "$url" -o /usr/local/bin/hadolint; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$url" -o /usr/local/bin/hadolint; \
     chmod +x /usr/local/bin/hadolint
 
 # ---- RTK (token-saving shell proxy for OpenCode) ----
@@ -118,53 +121,56 @@ RUN set -euo pipefail; \
         arm64) rtk_target=aarch64-unknown-linux-gnu ;; \
         *) echo "Unsupported arch for rtk: $arch" >&2; exit 1 ;; \
     esac; \
-    curl -fsSL "https://github.com/rtk-ai/rtk/releases/download/${RTK_VERSION}/rtk-${rtk_target}.tar.gz" -o /tmp/rtk.tar.gz; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors \
+        "https://github.com/rtk-ai/rtk/releases/download/${RTK_VERSION}/rtk-${rtk_target}.tar.gz" \
+        -o /tmp/rtk.tar.gz; \
     tar -xzf /tmp/rtk.tar.gz -C /usr/local/bin rtk; \
     chmod +x /usr/local/bin/rtk; \
     install -d /usr/local/share/rtk; \
-    curl -fsSL "https://raw.githubusercontent.com/rtk-ai/rtk/${RTK_VERSION}/hooks/opencode-rtk.ts" -o /usr/local/share/rtk/opencode-rtk.ts; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors \
+        "https://raw.githubusercontent.com/rtk-ai/rtk/${RTK_VERSION}/hooks/opencode-rtk.ts" \
+        -o /usr/local/share/rtk/opencode-rtk.ts; \
     rm -f /tmp/rtk.tar.gz
 
 # ---- opencode (adjust package name/version if needed) ----
 ARG OPENCODE_PKG=opencode-ai
 ARG OPENCODE_VERSION=latest
+# hadolint ignore=DL3059
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
-    npm install -g "${OPENCODE_PKG}@${OPENCODE_VERSION}"
-
-# ---- Node toolchain + package managers + LSPs + linters ----
-# Install pnpm/yarn directly from npm to avoid corepack's extra Yarn registry lookup.
-RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm install -g "${OPENCODE_PKG}@${OPENCODE_VERSION}" \
+    && \
+    # Install pnpm/yarn directly from npm to avoid corepack's extra Yarn registry lookup.
     npm install -g \
-      pnpm \
-      @yarnpkg/cli-dist \
-      typescript typescript-language-server \
-      vscode-langservers-extracted \
-      bash-language-server \
-      yaml-language-server \
-      dockerfile-language-server-nodejs \
-      @taplo/cli \
-      prettier \
-      eslint \
-      markdownlint-cli \
-      pyright \
+      pnpm@11.9.0 \
+      @yarnpkg/cli-dist@4.17.0 \
+      typescript@6.0.3 typescript-language-server@5.3.0 \
+      vscode-langservers-extracted@4.10.0 \
+      bash-language-server@5.6.0 \
+      yaml-language-server@1.23.0 \
+      dockerfile-language-server-nodejs@0.15.0 \
+      @taplo/cli@0.7.0 \
+      prettier@3.8.4 \
+      eslint@10.5.0 \
+      markdownlint-cli@0.49.0 \
+      pyright@1.1.411 \
       \
       # Ansible LSP (see note below)
-      @ansible/ansible-language-server
+      @ansible/ansible-language-server@26.6.0
 
 # NOTE: If @ansible/ansible-language-server ever fails to resolve on your system,
 # replace it with a known working package name used in your environment.
 
 # ---- Python toolchain + LSP + linters/formatters + Ansible ----
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    pipx install "python-lsp-server[all]" \
-    && pipx install ruff \
-    && pipx install black \
-    && pipx install isort \
-    && pipx install mypy \
-    && pipx install cmake-language-server \
-    && pipx install ansible \
-    && pipx install ansible-lint \
-    && pipx install uv
+    pipx install "python-lsp-server[all]==1.14.0" \
+    && pipx install "ruff==0.15.20" \
+    && pipx install "black==26.5.1" \
+    && pipx install "isort==8.0.1" \
+    && pipx install "mypy==2.1.0" \
+    && pipx install "cmake-language-server==0.1.5" \
+    && pipx install "ansible==14.1.0" \
+    && pipx install "ansible-lint==26.4.0" \
+    && pipx install "uv==0.11.24"
 
 # ---- Go LSP + linters/formatters ----
 ENV GOPATH=/opt/go
