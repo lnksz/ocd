@@ -100,6 +100,23 @@ No unit tests are present. Treat these as the test suite:
 hadolint Dockerfile && shellcheck entrypoint.sh && fish -n ocd.fish
 ```
 
+### GitHub Actions
+
+Docker Hub publishing is handled by `.github/workflows/build-and-push.yml`:
+- Runs daily at 02:00 UTC, which is 04:00 UTC+2.
+- Runs on pushes to `master`.
+- Can be run manually with `workflow_dispatch`.
+- Executes `./build-image.sh --push latest` after logging in to Docker Hub.
+
+Required repository secrets:
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+Workflow syntax check, if `actionlint` is installed:
+```bash
+actionlint .github/workflows/build-and-push.yml
+```
+
 ### Running a single check (single “test”)
 
 Prefer running the narrowest check first:
