@@ -132,7 +132,7 @@ If you want to push to a registry:
 Currently it mounts (if present):
 - OpenCode: `opencode/` under XDG config/cache/data
 - GitHub CLI: `gh/` under XDG config/cache
-- GitHub Copilot: `github-copilot/` under XDG config/cache/data
+ - GitHub Copilot: `github-copilot/` under XDG config/cache/data
 
 On startup, `entrypoint.sh` also installs the RTK OpenCode plugin to `opencode/plugins/rtk.ts` inside the mounted config dir so OpenCode can use `rtk rewrite` automatically.
 

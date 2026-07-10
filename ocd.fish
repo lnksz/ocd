@@ -134,10 +134,10 @@ function ocd --description "run OpenCode in Docker/Podman"
         end
     end
 
-    # Pass provider environment file if present (KEY=value lines, # comments)
+    # Pass environment file if present (KEY=value lines, # comments)
     set -l env_file
-    if test -f "$host_cfg/provider-config.env"
-        set env_file --env-file "$host_cfg/provider-config.env"
+    if test -f "$host_cfg/config.env"
+        set env_file --env-file "$host_cfg/config.env"
     end
 
     set -l is_shell_mode 0
