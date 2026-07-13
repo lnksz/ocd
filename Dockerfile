@@ -132,7 +132,7 @@ RUN set -euo pipefail; \
     curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$checksums_url" -o /tmp/checksums.txt; \
     expected_sha="$(grep "  ${asset_name}$" /tmp/checksums.txt | cut -d' ' -f1)"; \
     printf '%s  %s\n' "$expected_sha" "/tmp/${asset_name}" | sha256sum -c -; \
-    tar -xzf "/tmp/${asset_name}" -C /usr/local --strip-components=1 bin/glab; \
+    tar -xzf "/tmp/${asset_name}" -C /usr/local/bin --strip-components=1 bin/glab; \
     chmod +x /usr/local/bin/glab; \
     glab version; \
     rm -f /tmp/glab-release.json "/tmp/${asset_name}" /tmp/checksums.txt
