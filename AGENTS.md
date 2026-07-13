@@ -103,6 +103,20 @@ Smoke-check RTK wiring:
 fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "command -v rtk >/dev/null && test -f /tmp/home/.config/opencode/plugins/rtk.ts"'
 ```
 
+Smoke-check linked Git worktree support:
+```bash
+tmpdir="$(mktemp -d)"
+git init "$tmpdir/main"
+git -C "$tmpdir/main" config user.email ocd@example.invalid
+git -C "$tmpdir/main" config user.name ocd
+touch "$tmpdir/main/README"
+git -C "$tmpdir/main" add README
+git -C "$tmpdir/main" commit -m init
+git -C "$tmpdir/main" worktree add "$tmpdir/linked"
+fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; cd "$argv[1]"; ocd --shell -c "git status --porcelain"' "$tmpdir/linked"
+rm -rf "$tmpdir"
+```
+
 Smoke-check bundled Node package managers:
 ```bash
 docker run --rm ocd:dev bash -lc 'command -v pnpm >/dev/null && command -v yarn >/dev/null'

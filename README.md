@@ -129,6 +129,8 @@ If you want to push to a registry:
 
 `ocd.fish` mounts host config/cache into the container under `/tmp/home` so OpenCode + GitHub tooling can reuse your login state when available.
 
+When started from a linked Git worktree or repository subdirectory, it also mounts the external shared `.git` directory at its original path. Git and OpenCode can resolve the worktree without mounting the parent working tree.
+
 Currently it mounts (if present):
 - OpenCode: `opencode/` under XDG config/cache/data
 - GitHub CLI: `gh/` under XDG config/cache

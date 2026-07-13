@@ -23,6 +23,19 @@ function ocd --description "run OpenCode in Docker/Podman"
     end
     set -l pwd_real (pwd)
 
+    # Linked worktrees refer to the main checkout's .git directory. Preserve
+    # that reference inside the container without mounting its working tree.
+    set -l external_git_dir
+    if command -sq git; and git -C "$pwd_real" rev-parse --is-inside-work-tree >/dev/null 2>&1
+        set external_git_dir (git -C "$pwd_real" rev-parse --git-common-dir 2>/dev/null)
+        if test -n "$external_git_dir"
+            set external_git_dir (readlink -f -- "$external_git_dir" 2>/dev/null)
+        end
+        if test "$external_git_dir" = "$pwd_real/.git"
+            set external_git_dir
+        end
+    end
+
     # Host XDG paths with fallbacks
     set -l xdg_config (set -q XDG_CONFIG_HOME; and echo $XDG_CONFIG_HOME; or echo "$HOME/.config")
     set -l xdg_cache (set -q XDG_CACHE_HOME;  and echo $XDG_CACHE_HOME;  or echo "$HOME/.cache")
@@ -105,6 +118,9 @@ function ocd --description "run OpenCode in Docker/Podman"
 
     # Optional mounts for provider auth and extra OpenCode config.
     set -l extra_mounts
+    if test -n "$external_git_dir"; and test -d "$external_git_dir"
+        set extra_mounts $extra_mounts -v "$external_git_dir:$external_git_dir"
+    end
     set -l mount_pairs \
         "$xdg_config/gh:/tmp/home/.config/gh" \
         "$xdg_cache/gh:/tmp/home/.cache/gh" \
