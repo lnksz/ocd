@@ -122,6 +122,11 @@ Smoke-check bundled Node package managers:
 docker run --rm ocd:dev bash -lc 'command -v pnpm >/dev/null && command -v yarn >/dev/null'
 ```
 
+Smoke-check the latest GitLab CLI installation:
+```bash
+docker run --rm ocd:dev glab version
+```
+
 ### “Tests”
 
 No unit tests are present. Treat these as the test suite:

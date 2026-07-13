@@ -112,6 +112,31 @@ RUN set -euo pipefail; \
     curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$url" -o /usr/local/bin/hadolint; \
     chmod +x /usr/local/bin/hadolint
 
+# ---- GitLab CLI (latest release) ----
+# Remote ADD makes the release metadata part of the cache key, so a new release
+# invalidates this installation layer without pinning a version.
+# hadolint ignore=DL3020
+ADD https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/releases/permalink/latest /tmp/glab-release.json
+RUN set -euo pipefail; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+        amd64 | arm64) glab_arch="$arch" ;; \
+        *) echo "Unsupported arch for GitLab CLI: $arch" >&2; exit 1 ;; \
+    esac; \
+    tag_name="$(jq -er '.tag_name | select(startswith("v"))' /tmp/glab-release.json)"; \
+    version="${tag_name#v}"; \
+    asset_name="glab_${version}_linux_${glab_arch}.tar.gz"; \
+    asset_url="$(jq -er --arg name "$asset_name" '.assets.links[] | select(.name == $name) | .direct_asset_url' /tmp/glab-release.json)"; \
+    checksums_url="$(jq -er '.assets.links[] | select(.name == "checksums.txt") | .direct_asset_url' /tmp/glab-release.json)"; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$asset_url" -o "/tmp/${asset_name}"; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$checksums_url" -o /tmp/checksums.txt; \
+    expected_sha="$(grep "  ${asset_name}$" /tmp/checksums.txt | cut -d' ' -f1)"; \
+    printf '%s  %s\n' "$expected_sha" "/tmp/${asset_name}" | sha256sum -c -; \
+    tar -xzf "/tmp/${asset_name}" -C /usr/local --strip-components=1 bin/glab; \
+    chmod +x /usr/local/bin/glab; \
+    glab version; \
+    rm -f /tmp/glab-release.json "/tmp/${asset_name}" /tmp/checksums.txt
+
 # ---- RTK (token-saving shell proxy for OpenCode) ----
 ARG RTK_VERSION=v0.33.1
 RUN set -euo pipefail; \
