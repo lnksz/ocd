@@ -87,10 +87,11 @@ Fish (`ocd.fish`):
 fish -n ocd.fish
 ```
 
-Smoke-check optional agents mount:
+Smoke-check optional agents and skills mounts:
 ```bash
 mkdir -p ~/.config/opencode/agents
-fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "test -d /tmp/home/.config/opencode/agents"'
+mkdir -p ~/.config/opencode/skills
+fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "test -d /tmp/home/.config/opencode/agents && test -d /tmp/home/.config/opencode/skills"'
 ```
 
 Smoke-check computed resource limits:
@@ -210,7 +211,8 @@ Formatting:
 - Quote paths; assume spaces in working directories.
 - Keep Docker args readable (one flag per line is preferred for long runs).
 - The function should remain a thin wrapper; complex logic belongs in scripts.
-- Keep optional mounts narrowly scoped; mount `~/.config/opencode/agents` only when it exists.
+- Keep optional mounts narrowly scoped; mount `~/.config/opencode/agents` and
+  `~/.config/opencode/skills` only when they exist.
 - Default resource limits are relative to the host (`60%` CPU and `60%` RAM); keep absolute overrides simple and predictable.
 - For plain `ocd` runs, prefer a narrow TUI config override over tty signal hacks when working around OpenCode keybind behavior.
 
