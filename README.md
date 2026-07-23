@@ -9,7 +9,7 @@ This repo contains:
 - `build-image.sh`: build + tag images to match the published `opencode` version
 - `update-tools.sh`: ask OpenCode to refresh pinned Dockerfile tool versions
 
-The image also bundles [`rtk`](https://github.com/rtk-ai/rtk) and seeds the OpenCode plugin at container startup, so shell tool calls can be transparently rewritten through RTK.
+The image also bundles [`rtk`](https://github.com/rtk-ai/rtk), seeds the OpenCode plugin at container startup, and defaults `EDITOR` to `nvim`.
 
 ## Quick start (Fish)
 
@@ -72,7 +72,7 @@ Precedence is:
 - `OCD_MEMORY` over `OCD_MEMORY_PERCENT`
 - otherwise the built-in `60%` defaults
 
-For plain `ocd`, the wrapper injects a temporary TUI override that disables OpenCode's built-in `Ctrl+Z` suspend binding to avoid wedging the host tty. `ocd --shell` is left unchanged.
+For plain `ocd`, the wrapper runs OpenCode through a small shell trampoline so exiting OpenCode, including with `Ctrl+C` or `Ctrl+D`, drops you into `fish` inside the container. It still injects a temporary TUI override that disables OpenCode's built-in `Ctrl+Z` suspend binding to avoid wedging the host tty. `ocd --shell` is left unchanged.
 
 ## Build
 

@@ -158,8 +158,8 @@ function ocd --description "run OpenCode in Docker/Podman"
     end
 
     set -l is_shell_mode 0
-    set -l cmd opencode
-    set -l cmd_args $argv
+    set -l cmd
+    set -l cmd_args
     if test (count $argv) -gt 0; and begin; test "$argv[1]" = "--shell"; or test "$argv[1]" = "-s"; end
         set is_shell_mode 1
         set cmd fish
@@ -168,6 +168,14 @@ function ocd --description "run OpenCode in Docker/Podman"
         else
             set cmd_args
         end
+    else
+        set -l opencode_wrapper 'set -uo pipefail
+trap : INT
+opencode "$@"
+exec fish'
+
+        set cmd bash
+        set cmd_args -c "$opencode_wrapper" ocd-opencode $argv
     end
 
     set -l override_mounts

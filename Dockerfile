@@ -7,7 +7,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     NPM_CONFIG_PREFIX=/usr/local \
     PIPX_HOME=/opt/pipx \
     PIPX_BIN_DIR=/usr/local/bin \
-    PIPX_DEFAULT_PYTHON=python3
+    PIPX_DEFAULT_PYTHON=python3 \
+    EDITOR=nvim
 
 ARG NODE_VERSION=v24.16.0
 
@@ -20,7 +21,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl wget openssl \
       git git-lfs openssh-client \
-      bash fish sudo \
+      bash fish sudo neovim \
       jq ripgrep fd-find fzf \
       unzip zip xz-utils \
       procps psmisc \

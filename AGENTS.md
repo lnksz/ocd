@@ -104,6 +104,17 @@ Smoke-check RTK wiring:
 fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "command -v rtk >/dev/null && test -f /tmp/home/.config/opencode/plugins/rtk.ts"'
 ```
 
+Smoke-check bundled editor default:
+```bash
+docker run --rm ocd:dev bash -lc 'test "$EDITOR" = nvim && command -v nvim >/dev/null'
+```
+
+Manual smoke-check for the `Ctrl+C` shell fallback:
+```bash
+fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd'
+```
+Press `Ctrl+C` and confirm you land in `fish` inside the container, then use `Ctrl+D` twice to exit OpenCode and the container.
+
 Smoke-check linked Git worktree support:
 ```bash
 tmpdir="$(mktemp -d)"
@@ -214,7 +225,7 @@ Formatting:
 - Keep optional mounts narrowly scoped; mount `~/.config/opencode/agents` and
   `~/.config/opencode/skills` only when they exist.
 - Default resource limits are relative to the host (`60%` CPU and `60%` RAM); keep absolute overrides simple and predictable.
-- For plain `ocd` runs, prefer a narrow TUI config override over tty signal hacks when working around OpenCode keybind behavior.
+- For plain `ocd` runs, keep OpenCode TUI workarounds narrow: use the temporary `tui.json` override only for the `Ctrl+Z` keybind, and keep the `Ctrl+C` fallback-shell wrapper minimal.
 
 ### Dockerfile
 
