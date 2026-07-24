@@ -94,6 +94,11 @@ mkdir -p ~/.config/opencode/skills
 fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "test -d /tmp/home/.config/opencode/agents && test -d /tmp/home/.config/opencode/skills"'
 ```
 
+Smoke-check a symlinked global instructions file:
+```bash
+fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "test -f /tmp/home/.config/opencode/AGENTS.md"'
+```
+
 Smoke-check computed resource limits:
 ```bash
 fish -c 'source ./ocd.fish; set -gx OCD_IMAGE ocd:dev; ocd --shell -c "nproc >/dev/null && test -n \"$(cat /sys/fs/cgroup/memory.max 2>/dev/null || true)\""'

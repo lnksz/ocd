@@ -139,9 +139,9 @@ function ocd --description "run OpenCode in Docker/Podman"
         end
     end
 
-    # If opencode.json/opencode.jsonc is a symlink, mount its target file over
-    # the container config path (target may live outside the mounted tree).
-    for cfg_file in "$host_cfg/opencode.json" "$host_cfg/opencode.jsonc"
+    # Mount targets of symlinked config files because they may live outside
+    # the host paths shared with the container.
+    for cfg_file in "$host_cfg/AGENTS.md" "$host_cfg/opencode.json" "$host_cfg/opencode.jsonc"
         if test -L "$cfg_file"
             set -l cfg_target (readlink -f -- "$cfg_file" 2>/dev/null)
             if test -n "$cfg_target"
