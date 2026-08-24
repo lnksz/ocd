@@ -35,4 +35,9 @@ jobs:
       - name: Build and push image
         env:
           OCD_ENGINE: docker
-        run: ./build-image.sh --push
+        run: ./build-image.sh opencode --push
+
+      - name: Build and push Pi image
+        env:
+          PID_ENGINE: docker
+        run: ./build-image.sh pi --push
