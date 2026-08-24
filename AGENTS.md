@@ -2,14 +2,15 @@
 
 This repository provides separate Docker wrappers for coding agents:
 
-- `opencode/`: `Dockerfile`, `entrypoint.sh`, `ocd.fish`, `build-image.sh`, and `update-tools.sh`
+- `opencode/`: `Dockerfile`, `entrypoint.sh`, `ocd.fish`, and `update-tools.sh`
 - `pi/`: `Dockerfile`, `entrypoint.sh`, and `pid.fish`
+- Root: shared `build-image.sh`
 
-Build from the repository root because each Dockerfile copies files from its own agent directory:
+Build from the repository root with each agent directory as its build context:
 
 ```bash
-docker build -f opencode/Dockerfile -t ocd:dev .
-docker build -f pi/Dockerfile -t pid:dev .
+docker build -f opencode/Dockerfile -t ocd:dev opencode
+docker build -f pi/Dockerfile -t pid:dev pi
 ```
 
 ## Commands
@@ -17,14 +18,15 @@ docker build -f pi/Dockerfile -t pid:dev .
 ```bash
 hadolint opencode/Dockerfile
 hadolint pi/Dockerfile
-shellcheck opencode/entrypoint.sh opencode/build-image.sh opencode/update-tools.sh pi/entrypoint.sh
+shellcheck build-image.sh opencode/entrypoint.sh opencode/update-tools.sh pi/entrypoint.sh
 fish -n opencode/ocd.fish pi/pid.fish
 ```
 
-Build/version the OpenCode image:
+Build/version the agent images:
 
 ```bash
-./opencode/build-image.sh latest
+./build-image.sh opencode latest
+./build-image.sh pi latest
 ./opencode/update-tools.sh
 ```
 

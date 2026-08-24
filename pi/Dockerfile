@@ -189,7 +189,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
 ENV PATH="/opt/go/bin:${PATH}"
 
 # ---- Entrypoint ----
-COPY pi/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

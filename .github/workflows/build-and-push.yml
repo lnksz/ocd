@@ -35,21 +35,9 @@ jobs:
       - name: Build and push image
         env:
           OCD_ENGINE: docker
-        run: ./opencode/build-image.sh --push
+        run: ./build-image.sh opencode --push
 
       - name: Build and push Pi image
-        run: |
-          pi_version="$(
-            docker run --rm docker.io/library/node:20-bookworm-slim \
-              npm view @earendil-works/pi-coding-agent version
-          )"
-          docker build \
-            -f pi/Dockerfile \
-            --build-arg PI_CODING_AGENT_VERSION="$pi_version" \
-            --label org.opencontainers.image.title="lnksz/pid" \
-            --label org.opencontainers.image.version="$pi_version" \
-            -t "docker.io/lnksz/pid:$pi_version" \
-            -t docker.io/lnksz/pid:latest \
-            .
-          docker push "docker.io/lnksz/pid:$pi_version"
-          docker push docker.io/lnksz/pid:latest
+        env:
+          PID_ENGINE: docker
+        run: ./build-image.sh pi --push

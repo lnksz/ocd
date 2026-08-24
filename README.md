@@ -4,8 +4,9 @@ Run coding agents inside Docker or Podman against the current working directory.
 
 Each agent is self-contained:
 
-- `opencode/`: OpenCode image, entrypoint, wrapper, and build/update scripts
+- `opencode/`: OpenCode image, entrypoint, wrapper, and update script
 - `pi/`: Pi image, entrypoint, and wrapper
+- `build-image.sh`: shared versioned image builder
 
 ## OpenCode
 
@@ -16,11 +17,11 @@ ocd
 
 By default this uses `docker.io/lnksz/ocd:latest`. Override it with `OCD_IMAGE`, select an engine with `OCD_ENGINE`, or use `ocd --shell` to open `fish` instead of OpenCode.
 
-Build from the repository root (the root is the Docker build context):
+Build from the repository root:
 
 ```bash
-docker build -f opencode/Dockerfile -t ocd:dev .
-./opencode/build-image.sh latest
+docker build -f opencode/Dockerfile -t ocd:dev opencode
+./build-image.sh opencode latest
 ```
 
 ## Pi
@@ -35,7 +36,8 @@ By default this uses `docker.io/lnksz/pid:latest`. Override it with `PID_IMAGE`,
 Build from the repository root:
 
 ```bash
-docker build -f pi/Dockerfile -t pid:dev .
+docker build -f pi/Dockerfile -t pid:dev pi
+./build-image.sh pi latest
 ```
 
 The publish workflow builds and pushes `docker.io/lnksz/pid:<Pi version>` and
@@ -50,6 +52,6 @@ Both wrappers default to 60% of host CPU and RAM. Their agent-specific overrides
 ```bash
 hadolint opencode/Dockerfile
 hadolint pi/Dockerfile
-shellcheck opencode/entrypoint.sh opencode/build-image.sh opencode/update-tools.sh pi/entrypoint.sh
+shellcheck build-image.sh opencode/entrypoint.sh opencode/update-tools.sh pi/entrypoint.sh
 fish -n opencode/ocd.fish pi/pid.fish
 ```

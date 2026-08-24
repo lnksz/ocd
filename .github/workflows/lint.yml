@@ -44,4 +44,6 @@ jobs:
           sudo apt-get install -y --no-install-recommends shellcheck
 
       - name: Run shellcheck
-        run: shellcheck opencode/entrypoint.sh opencode/build-image.sh opencode/update-tools.sh pi/entrypoint.sh
+        run: >-
+          shellcheck build-image.sh opencode/entrypoint.sh
+          opencode/update-tools.sh pi/entrypoint.sh
