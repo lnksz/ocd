@@ -20,6 +20,8 @@ set -euo pipefail
 #   ./build-image.sh --push latest
 #   ./build-image.sh --no-cache latest
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 pkg="${OPENCODE_PKG:-opencode-ai}"
 
 push_images=0
@@ -79,6 +81,7 @@ tag_latest="${image_repo}:latest"
 printf 'Building %s (OpenCode %s@%s -> %s)\n' "$tag_version" "$pkg" "$requested_version" "$resolved_version" >&2
 
 "$engine" build \
+	-f "$script_dir/Dockerfile" \
 	${no_cache:+--no-cache} \
 	--build-arg OPENCODE_PKG="$pkg" \
 	--build-arg OPENCODE_VERSION="$resolved_version" \
@@ -86,7 +89,7 @@ printf 'Building %s (OpenCode %s@%s -> %s)\n' "$tag_version" "$pkg" "$requested_
 	--label org.opencontainers.image.version="$resolved_version" \
 	-t "$tag_version" \
 	-t "$tag_latest" \
-	.
+	"$script_dir/.."
 
 printf 'Tagged: %s and %s\n' "$tag_version" "$tag_latest" >&2
 

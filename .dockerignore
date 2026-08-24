@@ -1,10 +1,9 @@
-# Reduce build context size; image only needs Dockerfile + entrypoint.sh
+# Reduce build context size; agent Dockerfiles use the repository root as context.
 .git/
 .github/
 .cursor/
 
 *.md
-ocd.fish
 
 .idea/
 .vscode/

@@ -1,164 +1,55 @@
-# ocd
+# Agent containers
 
-Run OpenCode inside Docker against your current working directory.
+Run coding agents inside Docker or Podman against the current working directory.
 
-This repo contains:
-- `Dockerfile`: the dev image ("everything included" tooling)
-- `entrypoint.sh`: sets up HOME/XDG + `nss_wrapper` for arbitrary `--user UID:GID`
-- `ocd.fish`: Fish wrapper function to run the container
-- `build-image.sh`: build + tag images to match the published `opencode` version
-- `update-tools.sh`: ask OpenCode to refresh pinned Dockerfile tool versions
+Each agent is self-contained:
 
-The image also bundles [`rtk`](https://github.com/rtk-ai/rtk), seeds the OpenCode plugin at container startup, and defaults `EDITOR` to `nvim`.
+- `opencode/`: OpenCode image, entrypoint, wrapper, and build/update scripts
+- `pi/`: Pi image, entrypoint, and wrapper
 
-## Quick start (Fish)
-
-1) Load the function:
+## OpenCode
 
 ```fish
-source /path/to/ocd.fish
-```
-
-2) Run OpenCode in the current directory:
-
-```fish
+source /path/to/opencode/ocd.fish
 ocd
 ```
 
-By default it uses the image `docker.io/lnksz/ocd:latest`.
+By default this uses `docker.io/lnksz/ocd:latest`. Override it with `OCD_IMAGE`, select an engine with `OCD_ENGINE`, or use `ocd --shell` to open `fish` instead of OpenCode.
 
-By default the wrapper also limits the container to `60%` of host CPU capacity and `60%` of host RAM.
+Build from the repository root (the root is the Docker build context):
 
-Override the image:
+```bash
+docker build -f opencode/Dockerfile -t ocd:dev .
+./opencode/build-image.sh latest
+```
+
+## Pi
 
 ```fish
-set -x OCD_IMAGE ocd:dev
-ocd
+source /path/to/pi/pid.fish
+pid
 ```
 
-Use Podman instead of Docker:
+By default this uses `docker.io/lnksz/pid:latest`. Override it with `PID_IMAGE`, select an engine with `PID_ENGINE`, or use `pid --shell` to open `fish` instead of Pi.
 
-```fish
-set -x OCD_ENGINE podman
-ocd
-```
-
-## Resource limits
-
-`ocd.fish` computes container limits from the host by default:
-
-- CPU: `60%` of host CPU capacity via `--cpus`
-- RAM: `60%` of host memory via `--memory`
-
-Override the percentages:
-
-```fish
-set -x OCD_CPU_PERCENT 50
-set -x OCD_MEMORY_PERCENT 80
-ocd
-```
-
-Override with absolute engine values instead:
-
-```fish
-set -x OCD_CPUS 2.5
-set -x OCD_MEMORY 8g
-ocd
-```
-
-Precedence is:
-
-- `OCD_CPUS` over `OCD_CPU_PERCENT`
-- `OCD_MEMORY` over `OCD_MEMORY_PERCENT`
-- otherwise the built-in `60%` defaults
-
-For plain `ocd`, the wrapper runs OpenCode through a small shell trampoline so exiting OpenCode, including with `Ctrl+C` or `Ctrl+D`, drops you into `fish` inside the container. It still injects a temporary TUI override that disables OpenCode's built-in `Ctrl+Z` suspend binding to avoid wedging the host tty. `ocd --shell` is left unchanged.
-
-## Build
-
-Local build:
+Build from the repository root:
 
 ```bash
-docker build -t ocd:dev .
+docker build -f pi/Dockerfile -t pid:dev .
 ```
 
-Podman build:
+The publish workflow builds and pushes `docker.io/lnksz/pid:<Pi version>` and
+`docker.io/lnksz/pid:latest` on pushes to `master` and on its daily schedule.
+
+Both wrappers default to 60% of host CPU and RAM. Their agent-specific overrides are `<AGENT>_CPU_PERCENT`, `<AGENT>_MEMORY_PERCENT`, `<AGENT>_CPUS`, and `<AGENT>_MEMORY` (`OCD_*` or `PID_*`).
+
+`ocd` persists its XDG `opencode/` configuration, cache, and data. `pid` persists `~/.pi/agent`, mounts `~/.agents`, and reuses OpenCode skills plus its commands and agent prompts as Pi prompt templates when those directories exist. Both reuse GitHub CLI/Copilot auth when available and support linked Git worktrees.
+
+## Checks
 
 ```bash
-podman build -t ocd:dev .
-```
-
-Smoke-run:
-
-```bash
-docker run --rm -it ocd:dev fish
-```
-
-## Versioned tags (Docker Hub)
-
-Build and tag to match the resolved OpenCode version:
-
-```bash
-./build-image.sh latest
-./build-image.sh 0.7.3
-```
-
-Ask OpenCode to update pinned Dockerfile tool versions:
-
-```bash
-./update-tools.sh
-```
-
-With Podman (or explicit engine selection):
-
-```bash
-OCD_ENGINE=podman ./build-image.sh latest
-```
-
-This tags:
-- `docker.io/lnksz/ocd:<resolved_version>`
-- `docker.io/lnksz/ocd:latest`
-
-If you want to push to a registry:
-
-```bash
-./build-image.sh --push latest
-```
-
-## Auth/config persistence
-
-`ocd.fish` mounts host config/cache into the container under `/tmp/home` so OpenCode + GitHub tooling can reuse your login state when available.
-
-When started from a linked Git worktree or repository subdirectory, it also mounts the external shared `.git` directory at its original path. Git and OpenCode can resolve the worktree without mounting the parent working tree.
-
-Currently it mounts (if present):
-- OpenCode: `opencode/` under XDG config/cache/data
-- GitHub CLI: `gh/` under XDG config/cache
- - GitHub Copilot: `github-copilot/` under XDG config/cache/data
-
-On startup, `entrypoint.sh` also installs the RTK OpenCode plugin to `opencode/plugins/rtk.ts` inside the mounted config dir so OpenCode can use `rtk rewrite` automatically.
-
-## Lint ("tests")
-
-No unit tests. Treat these as checks:
-
-```bash
-hadolint Dockerfile
-shellcheck entrypoint.sh
-shellcheck update-tools.sh
-fish -n ocd.fish
-```
-
-Quick RTK smoke check:
-
-```bash
-docker run --rm -v "$PWD:/work" -w /work ocd:dev bash -lc \
-  'command -v rtk >/dev/null && test -f /usr/local/share/rtk/opencode-rtk.ts'
-```
-
-If your host does not have these tools, run the checks inside the image:
-
-```bash
-docker run --rm -v "$PWD:/work" -w /work ocd:dev bash -lc \
-  'hadolint Dockerfile && shellcheck entrypoint.sh && shellcheck update-tools.sh && fish -n ocd.fish'
+hadolint opencode/Dockerfile
+hadolint pi/Dockerfile
+shellcheck opencode/entrypoint.sh opencode/build-image.sh opencode/update-tools.sh pi/entrypoint.sh
+fish -n opencode/ocd.fish pi/pid.fish
 ```

@@ -7,8 +7,13 @@ on:
 
 jobs:
   dockerfile:
-    name: Dockerfile
+    name: Dockerfile (${{ matrix.dockerfile }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dockerfile:
+          - opencode/Dockerfile
+          - pi/Dockerfile
 
     permissions:
       contents: read
@@ -20,7 +25,7 @@ jobs:
       - name: Run hadolint
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: Dockerfile
+          dockerfile: ${{ matrix.dockerfile }}
 
   shell:
     name: Shell
@@ -39,4 +44,4 @@ jobs:
           sudo apt-get install -y --no-install-recommends shellcheck
 
       - name: Run shellcheck
-        run: shellcheck build-image.sh
+        run: shellcheck opencode/entrypoint.sh opencode/build-image.sh opencode/update-tools.sh pi/entrypoint.sh
