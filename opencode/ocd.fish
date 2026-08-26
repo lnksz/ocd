@@ -157,6 +157,22 @@ function ocd --description "run OpenCode in Docker/Podman"
         set env_file --env-file "$host_cfg/config.env"
     end
 
+    set -l terminal_flags
+    if set -q TERM; and test -n "$TERM"
+        set terminal_flags $terminal_flags -e "TERM=$TERM"
+    end
+    if set -q TERM_PROGRAM; and test -n "$TERM_PROGRAM"
+        set terminal_flags $terminal_flags -e "TERM_PROGRAM=$TERM_PROGRAM"
+    end
+    if set -q COLORTERM; and test -n "$COLORTERM"
+        set terminal_flags $terminal_flags -e "COLORTERM=$COLORTERM"
+    end
+    if set -q TERMINFO; and test -d "$TERMINFO"
+        set terminal_flags $terminal_flags \
+            -v "$TERMINFO:/tmp/host-terminfo:ro" \
+            -e TERMINFO=/tmp/host-terminfo
+    end
+
     set -l is_shell_mode 0
     set -l cmd
     set -l cmd_args
@@ -213,6 +229,7 @@ exec fish'
         $extra_mounts \
         $override_mounts \
         $env_file \
+        $terminal_flags \
         $image \
         $cmd $cmd_args
 
