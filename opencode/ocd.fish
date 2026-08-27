@@ -107,6 +107,11 @@ function ocd --description "run OpenCode in Docker/Podman"
         --cpus="$cpu_limit" \
         --memory="$memory_limit"
 
+    set -l identity_flags --user 0:0
+    if test "$engine" = podman
+        set identity_flags $identity_flags --userns=keep-id
+    end
+
     # If a previous container run created the SQLite DB as root (or otherwise non-writable),
     # OpenCode will fail with "attempt to write a readonly database".
     set -l host_db "$host_data/opencode.db"
@@ -214,8 +219,11 @@ exec fish'
 
     $engine run --rm -it \
         --init \
-        --user (id -u):(id -g) \
+        $identity_flags \
         $resource_flags \
+        $env_file \
+        -e HOST_UID=(id -u) \
+        -e HOST_GID=(id -g) \
         -e HOST_USER=(whoami) \
         -e HOME=/tmp/home \
         -e XDG_CONFIG_HOME=/tmp/home/.config \
@@ -228,7 +236,6 @@ exec fish'
         -v "$host_data:/tmp/home/.local/share/opencode" \
         $extra_mounts \
         $override_mounts \
-        $env_file \
         $terminal_flags \
         $image \
         $cmd $cmd_args

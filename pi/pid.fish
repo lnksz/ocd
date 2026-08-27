@@ -101,6 +101,11 @@ function pid --description "run Pi coding agent in Docker/Podman"
         --cpus="$cpu_limit" \
         --memory="$memory_limit"
 
+    set -l identity_flags --user 0:0
+    if test "$engine" = podman
+        set identity_flags $identity_flags --userns=keep-id
+    end
+
     # Optional mounts for provider auth and extra Pi config.
     set -l extra_mounts
     if test -n "$external_git_dir"; and test -d "$external_git_dir"
@@ -164,8 +169,11 @@ exec fish'
 
     $engine run --rm -it \
         --init \
-        --user (id -u):(id -g) \
+        $identity_flags \
         $resource_flags \
+        $env_file \
+        -e HOST_UID=(id -u) \
+        -e HOST_GID=(id -g) \
         -e HOST_USER=(whoami) \
         -e HOME=/tmp/home \
         -e XDG_CONFIG_HOME=/tmp/home/.config \
@@ -176,7 +184,6 @@ exec fish'
         -v "$pwd_real:$pwd_real" \
         -v "$host_cfg:/tmp/home/.pi/agent" \
         $extra_mounts \
-        $env_file \
         $image \
         $cmd $cmd_args
 

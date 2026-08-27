@@ -44,5 +44,7 @@ docker run --rm pid:dev bash -lc 'command -v pi >/dev/null'
 - Keep Docker builds deterministic: pin tools where practical, clean package caches, and use `apt-get install -y --no-install-recommends`.
 - Keep Fish wrappers small, quote paths, use `set -l` locals, and keep mounts narrowly scoped.
 - `ocd` and `pid` each default resource limits to 60% of host CPU/RAM. Do not make one agent consume the other agent's environment variables.
-- `entrypoint.sh` uses `nss_wrapper` to support arbitrary `--user UID:GID`; preserve the HOME/XDG and Git `safe.directory` behavior.
+- `entrypoint.sh` creates an ephemeral account for the host UID/GID and drops
+  privileges before agent setup; preserve the HOME/XDG and Git
+  `safe.directory` behavior.
 - Do not log secrets or broaden mounted host paths without need.

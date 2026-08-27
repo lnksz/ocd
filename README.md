@@ -47,6 +47,11 @@ Both wrappers default to 60% of host CPU and RAM. Their agent-specific overrides
 
 `ocd` persists its XDG `opencode/` configuration, cache, and data. `pid` persists `~/.pi/agent`, mounts `~/.agents`, and reuses OpenCode skills plus its commands and agent prompts as Pi prompt templates when those directories exist. Both reuse GitHub CLI/Copilot auth when available and support linked Git worktrees.
 
+Both wrappers create an ephemeral container account matching the host UID/GID
+before starting the agent. The account has passwordless `sudo` so agents can
+install additional tools without changing bind-mounted file ownership. Rootless
+Podman uses a `keep-id` user namespace for the same ownership behavior.
+
 ## Checks
 
 ```bash
