@@ -24,7 +24,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       bash fish sudo util-linux neovim \
       jq ripgrep fd-find fzf \
       unzip zip xz-utils \
-      procps psmisc \
+      procps psmisc parallel \
       build-essential pkg-config \
       python3 python3-pip python3-venv pipx \
       golang-go \
