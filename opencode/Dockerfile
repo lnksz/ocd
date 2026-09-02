@@ -96,6 +96,18 @@ RUN set -euo pipefail; \
     curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$url" -o /usr/local/bin/hadolint; \
     chmod +x /usr/local/bin/hadolint
 
+# ---- Prek (fast pre-commit alternative) ----
+ARG PREK_VERSION=v0.5.2
+RUN set -euo pipefail; \
+    archive="prek-x86_64-unknown-linux-gnu.tar.gz"; \
+    url="https://github.com/j178/prek/releases/download/${PREK_VERSION}/${archive}"; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$url" -o "/tmp/${archive}"; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors "${url}.sha256" -o /tmp/prek.sha256; \
+    (cd /tmp && sha256sum -c prek.sha256); \
+    tar -xzf "/tmp/${archive}" -C /usr/local/bin --strip-components=1 --no-same-owner; \
+    prek --version; \
+    rm -f "/tmp/${archive}" /tmp/prek.sha256
+
 # ---- GitLab CLI (latest release) ----
 # Remote ADD makes the release metadata part of the cache key, so a new release
 # invalidates this installation layer without pinning a version.
