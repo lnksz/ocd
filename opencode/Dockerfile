@@ -92,7 +92,7 @@ RUN set -euo pipefail; \
         arm64) hadolint_arch=arm64 ;; \
         *) echo "Unsupported arch for hadolint: $arch" >&2; exit 1 ;; \
     esac; \
-    url="https://github.com/hadolint/hadolint/releases/download/${HADOLINT_VERSION}/hadolint-Linux-${hadolint_arch}"; \
+    url="https://github.com/hadolint/hadolint/releases/download/${HADOLINT_VERSION}/hadolint-linux-${hadolint_arch}"; \
     curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$url" -o /usr/local/bin/hadolint; \
     chmod +x /usr/local/bin/hadolint
 
@@ -134,7 +134,7 @@ RUN set -euo pipefail; \
     rm -f /tmp/glab-release.json "/tmp/${asset_name}" /tmp/checksums.txt
 
 # ---- RTK (token-saving shell proxy for OpenCode) ----
-ARG RTK_VERSION=v0.46.0
+ARG RTK_VERSION=v0.47.0
 RUN set -euo pipefail; \
     arch="$(dpkg --print-architecture)"; \
     case "$arch" in \
@@ -162,7 +162,7 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     && \
     # Install pnpm/yarn directly from npm to avoid corepack's extra Yarn registry lookup.
     npm install -g \
-      pnpm@11.24.0 \
+      pnpm@11.25.0 \
       @yarnpkg/cli-dist@4.18.0 \
       typescript@7.0.2 typescript-language-server@6.0.0 \
       vscode-langservers-extracted@4.10.0 \
@@ -172,7 +172,7 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
       @taplo/cli@0.7.0 \
       prettier@3.9.6 \
       eslint@10.9.1 \
-      markdownlint-cli@0.49.0 \
+      markdownlint-cli@0.49.1 \
       pyright@1.1.413 \
       \
       # Ansible LSP (see note below)
@@ -186,12 +186,12 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     pipx install "python-lsp-server[all]==1.15.0" \
     && pipx install "ruff==0.16.5" \
     && pipx install "black==26.5.1" \
-    && pipx install "isort==9.0.0" \
+    && pipx install "isort==9.0.1" \
     && pipx install "mypy==2.3.1" \
     && pipx install "cmake-language-server==0.1.5" \
     && pipx install "ansible==14.3.1" \
     && pipx install "ansible-lint==26.8.0" \
-    && pipx install "uv==0.12.6"
+    && pipx install "uv==0.12.9"
 
 # ---- Go LSP + linters/formatters ----
 ENV GOPATH=/opt/go
