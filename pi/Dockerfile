@@ -103,7 +103,8 @@ RUN set -euo pipefail; \
     url="https://github.com/j178/prek/releases/download/${PREK_VERSION}/${archive}"; \
     curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$url" -o "/tmp/${archive}"; \
     curl -fL --retry 6 --retry-delay 2 --retry-all-errors "${url}.sha256" -o /tmp/prek.sha256; \
-    (cd /tmp && sha256sum -c prek.sha256); \
+    expected_sha="$(cut -d' ' -f1 /tmp/prek.sha256)"; \
+    printf '%s  %s\n' "$expected_sha" "/tmp/${archive}" | sha256sum -c -; \
     tar -xzf "/tmp/${archive}" -C /usr/local/bin --strip-components=1 --no-same-owner; \
     prek --version; \
     rm -f "/tmp/${archive}" /tmp/prek.sha256
