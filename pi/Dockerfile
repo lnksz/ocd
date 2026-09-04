@@ -150,6 +150,7 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
       yaml-language-server@1.24.0 \
       dockerfile-language-server-nodejs@0.15.0 \
       @taplo/cli@0.7.0 \
+      hunkdiff@0.21.0 \
       prettier@3.9.6 \
       eslint@10.9.1 \
       markdownlint-cli@0.49.1 \
