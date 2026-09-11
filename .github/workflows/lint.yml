@@ -15,6 +15,7 @@ jobs:
           - opencode/Dockerfile
           - pi/Dockerfile
           - ox/Dockerfile
+          - cod/Dockerfile
 
     permissions:
       contents: read
@@ -39,7 +40,7 @@ jobs:
       - name: Check out repo
         uses: actions/checkout@v5
 
-      - name: Install shell tools
+      - name: Install check tools
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends shellcheck fish
@@ -47,10 +48,29 @@ jobs:
       - name: Run shellcheck
         run: >-
           shellcheck build-image.sh opencode/entrypoint.sh
-          opencode/update-tools.sh pi/entrypoint.sh ox/session.sh install.sh
+          opencode/update-tools.sh pi/entrypoint.sh ox/session.sh
+          cod/entrypoint.sh cod/codex.sh install.sh
 
       - name: Check Fish wrappers
-        run: fish -n opencode/ocd.fish pi/pid.fish ox/ox.fish
+        run: fish -n opencode/ocd.fish pi/pid.fish ox/ox.fish cod/cod.fish
 
       - name: Test ox wrapper and image builder
         run: python3 -m unittest discover -s ox/tests -v
+
+      - name: Test Codex integration
+        run: python3 -m unittest discover -s cod/tests -v
+
+  cod-smoke:
+    name: Codex image smoke test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v5
+
+      - name: Build Codex image
+        run: docker build -f cod/Dockerfile -t cod:dev cod
+
+      - name: Smoke-test Codex as host identity
+        run: python3 cod/tests/smoke.py cod:dev
