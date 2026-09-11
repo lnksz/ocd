@@ -232,7 +232,7 @@ class SessionTests(unittest.TestCase):
             path.mkdir()
         self.env = {
             key: value for key, value in os.environ.items()
-            if not key.startswith(("XDG_", "OX_", "GIT_")) and key != "BASH_ENV"
+            if not key.startswith(("XDG_", "OX_", "GIT_", "OPENCODE_")) and key != "BASH_ENV"
         }
         self.env.update(HOME=str(self.home), PATH=f"{self.bin}:{os.environ['PATH']}",
                         SESSION_LOG=str(self.base / "session.jsonl"))
