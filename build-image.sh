@@ -49,9 +49,21 @@ case "$target_dir" in
 	image_title="lnksz/pid"
 	create_git_tag=0
 	;;
+"$repo_root/ox")
+	agent_name="OpenCode Sandbox"
+	pkg="${OX_OPENCODE_PKG:-opencode-ai}"
+	requested_version="${OX_OPENCODE_VERSION:-latest}"
+	pkg_build_arg_name="OPENCODE_PKG"
+	build_arg_name="OPENCODE_VERSION"
+	engine="${OX_ENGINE:-${CONTAINER_ENGINE:-}}"
+	image_repo="${OX_IMAGE_REPO:-docker.io/lnksz/ox}"
+	push_default="${OX_PUSH:-0}"
+	image_title="lnksz/ox"
+	create_git_tag=0
+	;;
 *)
 	printf 'Unsupported agent directory: %s\n' "$target_dir" >&2
-	printf 'Expected %s or %s\n' "$repo_root/opencode" "$repo_root/pi" >&2
+	printf 'Expected %s, %s or %s\n' "$repo_root/opencode" "$repo_root/pi" "$repo_root/ox" >&2
 	exit 2
 	;;
 esac
@@ -122,6 +134,16 @@ printf 'Building %s (%s %s@%s -> %s)\n' \
 	-t "$tag_version" \
 	-t "$tag_latest" \
 	"$target_dir"
+
+if [[ "$target_dir" == "$repo_root/ox" ]]; then
+	# Check the executable selected by the image PATH, not just npm metadata:
+	# the upstream sandbox template also ships an OpenCode installation.
+	actual_version="$("$engine" run --rm --entrypoint opencode "$tag_version" --version)"
+	if [[ "$actual_version" != "$resolved_version" ]]; then
+		printf 'OpenCode version mismatch: expected %s, got %s\n' "$resolved_version" "$actual_version" >&2
+		exit 1
+	fi
+fi
 
 printf 'Tagged: %s and %s\n' "$tag_version" "$tag_latest" >&2
 if [[ "$push_images" == "1" ]]; then
