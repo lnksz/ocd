@@ -192,7 +192,7 @@ function ocd --description "run OpenCode in Docker/Podman"
     else
         set -l opencode_wrapper 'set -uo pipefail
 trap : INT
-opencode "$@"
+opencode --auto "$@"
 exec fish'
 
         set cmd bash
