@@ -10,7 +10,7 @@ function ox --description "run OpenCode in a Docker Sandbox"
             case --sandbox-name
                 printf '%s\n' "$name"
                 return 0
-            case --stop --rm
+            case --stop --rm --sync-sessions
                 set mode (string sub -s 3 -- "$argv[1]")
                 set -e argv[1]
             case --shell -s
@@ -27,13 +27,15 @@ function ox --description "run OpenCode in a Docker Sandbox"
         printf 'ox: install Docker Sandboxes (sbx >= 0.42.1) and run sbx login first; see ox/README.md\n' 1>&2
         return 127
     end
-    if contains -- "$mode" stop rm
+    if contains -- "$mode" stop rm sync-sessions
         if set -q argv[1]
             printf 'ox: --%s does not accept arguments\n' "$mode" 1>&2
             return 2
         end
-        command sbx "$mode" "$name"
-        return $status
+        if test "$mode" != sync-sessions
+            command sbx "$mode" "$name"
+            return $status
+        end
     end
 
     set -l image docker.io/lnksz/ox:latest
@@ -52,19 +54,26 @@ function ox --description "run OpenCode in a Docker Sandbox"
     if set -q XDG_DATA_HOME; and test -n "$XDG_DATA_HOME"
         set xdg_data "$XDG_DATA_HOME"
     end
-    mkdir -p "$xdg_config/opencode" "$xdg_cache/opencode" "$xdg_data/opencode"; or return
+    set -l host_data "$xdg_data/opencode"
+    set -l auth_seed "$xdg_data/ox/opencode-seed"
+    mkdir -p "$xdg_config/opencode" "$auth_seed"; or return
+    chmod 0700 "$auth_seed"; or return
     set -l host_cfg (path resolve "$xdg_config/opencode")
-    set -l host_cache (path resolve "$xdg_cache/opencode")
-    set -l host_data (path resolve "$xdg_data/opencode")
-    if test -e "$host_data/opencode.db"; and not test -w "$host_data/opencode.db"
-        printf 'ox: %s/opencode.db is not writable; fix host ownership/permissions first\n' "$host_data" 1>&2
-        return 1
+    set auth_seed (path resolve "$auth_seed")
+    for file in auth.json account.json
+        if test -f "$host_data/$file"
+            set -l temporary "$auth_seed/.$file.$fish_pid"
+            command install -m 0600 -- "$host_data/$file" "$temporary"; or return
+            command mv -f -- "$temporary" "$auth_seed/$file"; or return
+        else
+            command rm -f -- "$auth_seed/$file"; or return
+        end
     end
 
-    # sbx mounts at the same absolute path; the session links only the selected
-    # agent directories into its own HOME. Never share an entire host XDG root.
-    set -l mounts "$workspace" "$host_cfg" "$host_cache" "$host_data"
-    set -l session_env -e "OX_HOST_CONFIG=$host_cfg" -e "OX_HOST_CACHE=$host_cache" -e "OX_HOST_DATA=$host_data"
+    # Keep SQLite and caches inside the VM. Cross-kernel WAL access over
+    # virtiofs can expose incoherent database pages to concurrent processes.
+    set -l mounts "$workspace" "$host_cfg" "$auth_seed:ro"
+    set -l session_env -e "OX_HOST_CONFIG=$host_cfg" -e "OX_HOST_DATA_SEED=$auth_seed"
     set -l links
     for pair in config/gh cache/gh config/github-copilot cache/github-copilot data/github-copilot
         set -l parts (string split / -- "$pair")
@@ -142,6 +151,49 @@ function ox --description "run OpenCode in a Docker Sandbox"
     if test $list_status -ne 0
         return $list_status
     end
+    if test "$mode" = sync-sessions
+        if not contains -- "$name" $sandboxes
+            printf 'ox: no sandbox exists for %s\n' "$workspace" 1>&2
+            return 1
+        end
+        if not command -sq opencode
+            printf 'ox: host opencode is required to import session snapshots\n' 1>&2
+            return 127
+        end
+        set -l remote_dir /home/agent/.local/share/ox/session-exports
+        set -l exports (command sbx exec "$name" bash -c \
+            'for file in "$1"/*.json; do if test -f "$file"; then basename "$file"; fi; done' \
+            ox-sync "$remote_dir")
+        set -l export_status $status
+        if test $export_status -ne 0
+            return $export_status
+        end
+        if not set -q exports[1]
+            printf 'ox: no completed session snapshots to sync\n'
+            return 0
+        end
+        set -l temporary (mktemp -d); or return
+        set -l sync_status 0
+        for file in $exports
+            if not string match -rq '^ses_[A-Za-z0-9_-]+(\.[a-f0-9]{64})?\.json$' -- "$file"
+                printf 'ox: refusing unexpected snapshot name %s\n' "$file" 1>&2
+                set sync_status 1
+                continue
+            end
+            set -l local_file "$temporary/$file"
+            if not command sbx cp "$name:$remote_dir/$file" "$local_file"
+                set sync_status 1
+                continue
+            end
+            if command opencode import "$local_file"
+                command sbx exec "$name" rm -f -- "$remote_dir/$file"; or set sync_status 1
+            else
+                set sync_status 1
+            end
+        end
+        command rm -rf -- "$temporary"
+        return $sync_status
+    end
     if not contains -- "$name" $sandboxes
         set -l cpus "$OX_CPUS"
         if test -z "$cpus"
@@ -184,5 +236,15 @@ function ox --description "run OpenCode in a Docker Sandbox"
     # template's BASH_ENV (/etc/sandbox-persistent.sh) without a login profile
     # resetting the image PATH that contains OpenCode and the development tools.
     command sbx exec -it --workdir "$workspace" $session_env "$name" \
-        bash -c 'exec /usr/local/bin/ox-session "$@"' ox-session $links -- "$mode" $argv
+        bash -c '
+if [ "$(env -u OX_HOST_CONFIG /usr/local/bin/ox-session --runtime-version 2>/dev/null)" != 2 ]; then
+    printf "ox: this sandbox has an outdated session launcher (private runtime v2 required).\n" >&2
+    printf "ox: rebuild/load the template from this checkout, or refresh a published update:\n" >&2
+    printf "    ox --rm\n    sbx template rm %q\n    ox\n" "$1" >&2
+    printf "ox: recreating alone reuses the cached image; see ox/README.md, Apply a published update.\n" >&2
+    exit 1
+fi
+shift
+exec /usr/local/bin/ox-session "$@"
+' ox-session "$image" $links -- "$mode" $argv
 end

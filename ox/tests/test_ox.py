@@ -17,6 +17,8 @@ SBX = r'''#!/usr/bin/env python3
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 
 args = sys.argv[1:]
@@ -34,6 +36,21 @@ elif args[0] == "create":
             print(f"ERROR: workspace path exists but is not a directory: {path}", file=sys.stderr)
             sys.exit(1)
     state.write_text(args[args.index("--name") + 1])
+elif args[0] == "exec" and "ox-sync" in args:
+    exports = Path(os.environ["REMOTE_EXPORTS"])
+    command = args[args.index("bash"):]
+    command[-1] = str(exports)
+    sys.exit(subprocess.run(command).returncode)
+elif args[0] == "exec" and "TEST_LAUNCHER" in os.environ:
+    command = args[args.index("bash"):]
+    command[2] = command[2].replace("/usr/local/bin/ox-session", '"' + os.environ["TEST_LAUNCHER"] + '"')
+    sys.exit(subprocess.run(command).returncode)
+elif args[0] == "exec" and "rm" in args:
+    exports = Path(os.environ["REMOTE_EXPORTS"])
+    (exports / Path(args[-1]).name).unlink(missing_ok=True)
+elif args[0] == "cp":
+    exports = Path(os.environ["REMOTE_EXPORTS"])
+    shutil.copy2(exports / Path(args[-2]).name, args[-1])
 elif args[0] == "rm":
     state.unlink(missing_ok=True)
 '''
@@ -115,6 +132,9 @@ class WrapperTests(unittest.TestCase):
         (self.cfg / "opencode.json").symlink_to(config)
         env_file = self.cfg / "config.env"
         env_file.write_text("API_KEY=test-only\n")
+        host_data = self.home / "data" / "opencode"
+        host_data.mkdir(parents=True)
+        (host_data / "auth.json").write_text('{"provider":"test"}\n')
         terminfo = self.base / "terminfo"
         terminfo.mkdir()
         self.env.update(TERM="xterm-test", TERM_PROGRAM="test-terminal", TERMINFO=str(terminfo))
@@ -122,13 +142,18 @@ class WrapperTests(unittest.TestCase):
         _, create, execute = self.calls()
         mounts = create[create.index("opencode") + 1:]
         self.assertEqual(mounts[0], str(self.workspace))
-        for mount in (str(self.cfg), str(gh), str(skills), f"{config_source}:ro", f"{terminfo}:ro"):
+        seed = self.home / "data" / "ox" / "opencode-seed"
+        for mount in (str(self.cfg), f"{seed}:ro", str(gh), str(skills),
+                      f"{config_source}:ro", f"{terminfo}:ro"):
             self.assertIn(mount, mounts)
         self.assertNotIn(f"{instructions}:ro", mounts)
         self.assertEqual(mounts.count(f"{config_source}:ro"), 1)
         self.assertNotIn(f"{config_source.parent}:ro", mounts)
         self.assertNotIn(str(self.home), mounts)
         self.assertNotIn(str(self.home / "config"), mounts)
+        self.assertNotIn(str(host_data), mounts)
+        self.assertNotIn(str(self.home / "cache" / "opencode"), mounts)
+        self.assertEqual((seed / "auth.json").read_text(), '{"provider":"test"}\n')
         self.assertIn("TERM=xterm-test", execute)
         self.assertIn(str(env_file), execute)
         self.assertIn("config/gh", execute)
@@ -146,7 +171,8 @@ class WrapperTests(unittest.TestCase):
         mounts = create[create.index("opencode") + 1:]
         self.assertIn(str(self.workspace), mounts)
         self.assertIn(str(self.cfg), mounts)
-        self.assertFalse(any(mount.endswith(":ro") for mount in mounts))
+        self.assertNotIn(f"{self.workspace}:ro", mounts)
+        self.assertNotIn(f"{self.cfg}:ro", mounts)
 
     def test_config_file_in_symlinked_skills_reuses_directory_share(self):
         skills = self.base / "shared skills"
@@ -214,6 +240,79 @@ class WrapperTests(unittest.TestCase):
         self.assertEqual(self.calls()[-2:], [["stop", expected], ["rm", expected]])
         self.run_ox("--rm", "unexpected", code=2)
 
+    def test_cached_legacy_launcher_reports_template_refresh(self):
+        launcher = self.base / "old launcher"
+        launcher.write_text('#!/bin/bash\n: "${OX_HOST_CONFIG:?}"\nexit 99\n')
+        launcher.chmod(0o755)
+        self.env.update(TEST_LAUNCHER=str(launcher), OX_HOST_CONFIG=str(self.cfg),
+                        OX_IMAGE="registry.example/ox:old")
+        for _ in range(2):
+            result = self.run_ox(code=1)
+            self.assertIn("outdated session launcher", result.stderr)
+            self.assertIn("sbx template rm registry.example/ox:old", result.stderr)
+            self.assertNotIn("/__ox_private_runtime", result.stderr)
+            self.run_ox("--rm")
+
+    def test_current_launcher_handshake_preserves_arguments(self):
+        launcher = self.base / "current launcher"
+        launcher.write_text('''#!/bin/bash
+if [ "$1" = --runtime-version ]; then printf '2\\n'; exit; fi
+printf '<%s>\\n' "$@"
+''')
+        launcher.chmod(0o755)
+        self.env["TEST_LAUNCHER"] = str(launcher)
+        result = self.run_ox("run", "a spaced prompt", "")
+        self.assertEqual(result.stdout, "<-->\n<opencode>\n<run>\n<a spaced prompt>\n<>\n")
+
+    def setup_sync(self):
+        self.run_ox()
+        exports = self.base / "sandbox exports"
+        exports.mkdir()
+        opencode = self.bin / "opencode"
+        opencode.write_text('''#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+with open(os.environ["IMPORT_LOG"], "a") as log:
+    log.write(json.dumps({"args": sys.argv[1:], "data": Path(sys.argv[2]).read_text()}) + "\\n")
+sys.exit(int(os.environ.get("IMPORT_STATUS", "0")))
+''')
+        opencode.chmod(0o755)
+        self.env.update(REMOTE_EXPORTS=str(exports), IMPORT_LOG=str(self.base / "imports.jsonl"))
+        return exports
+
+    def test_sync_imports_and_removes_queued_snapshots(self):
+        exports = self.setup_sync()
+        session_id = "ses_test123"
+        snapshot = exports / f"{session_id}.{'a' * 64}.json"
+        snapshot.write_text(json.dumps({"info": {"id": session_id}, "messages": []}))
+        self.run_ox("--sync-sessions")
+        imported = json.loads(Path(self.env["IMPORT_LOG"]).read_text())
+        self.assertEqual(imported["args"][0], "import")
+        self.assertEqual(json.loads(imported["data"])["info"]["id"], session_id)
+        self.assertFalse(snapshot.exists())
+        self.assertEqual([call[0] for call in self.calls()][-4:],
+                         ["ls", "exec", "cp", "exec"])
+
+    def test_sync_empty_or_absent_queue_succeeds(self):
+        exports = self.setup_sync()
+        for _ in range(2):
+            result = self.run_ox("--sync-sessions")
+            self.assertIn("no completed session snapshots", result.stdout)
+            self.assertFalse(Path(self.env["IMPORT_LOG"]).exists())
+            if exports.exists():
+                exports.rmdir()
+
+    def test_sync_preserves_queue_on_copy_or_import_failure(self):
+        exports = self.setup_sync()
+        snapshot = exports / "ses_retry.json"
+        snapshot.write_text('{}\n')
+        for variable, value in (("FAIL_COMMAND", "cp"), ("IMPORT_STATUS", "1")):
+            with self.subTest(variable=variable):
+                self.env[variable] = value
+                self.run_ox("--sync-sessions", code=1)
+                self.assertTrue(snapshot.exists())
+                del self.env[variable]
+
     def test_broken_config_symlink_fails_before_sbx(self):
         (self.cfg / "AGENTS.md").symlink_to(self.base / "missing")
         self.run_ox(code=1)
@@ -235,21 +334,39 @@ class SessionTests(unittest.TestCase):
             if not key.startswith(("XDG_", "OX_", "GIT_", "OPENCODE_")) and key != "BASH_ENV"
         }
         self.env.update(HOME=str(self.home), PATH=f"{self.bin}:{os.environ['PATH']}",
-                        SESSION_LOG=str(self.base / "session.jsonl"))
-        for kind in ("CONFIG", "CACHE", "DATA"):
-            path = self.base / kind.lower()
-            path.mkdir()
-            self.env[f"OX_HOST_{kind}"] = str(path)
+                        SESSION_LOG=str(self.base / "session.jsonl"),
+                        SESSION_LIST_COUNT=str(self.base / "session-list-count"))
+        config = self.base / "config"
+        config.mkdir()
+        seed = self.base / "seed"
+        seed.mkdir()
+        self.env["OX_HOST_CONFIG"] = str(config)
+        self.env["OX_HOST_DATA_SEED"] = str(seed)
         for command in ("fish", "opencode"):
             path = self.bin / command
             path.write_text('''#!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
+name = Path(sys.argv[0]).name
+if name == "opencode" and sys.argv[1:3] == ["session", "list"]:
+    counter = Path(os.environ["SESSION_LIST_COUNT"])
+    count = int(counter.read_text()) if counter.exists() else 0
+    counter.write_text(str(count + 1))
+    if count == 0 and os.environ.get("EMPTY_BASELINE"):
+        sys.exit(0)
+    before = [{"id": "ses_changed", "updated": 1}, {"id": "ses_unchanged", "updated": 1}]
+    after = [{"id": "ses_test123", "updated": 2}, {"id": "ses_changed", "updated": 3},
+             {"id": "ses_unchanged", "updated": 1}]
+    print(json.dumps(before if count == 0 else after))
+    sys.exit(0)
+if name == "opencode" and sys.argv[1:2] == ["export"]:
+    print(json.dumps({"info": {"id": sys.argv[2]}, "messages": []}))
+    sys.exit(0)
 with open(os.environ["SESSION_LOG"], "a") as log:
-    log.write(json.dumps({"command": Path(sys.argv[0]).name, "args": sys.argv[1:],
+    log.write(json.dumps({"command": name, "args": sys.argv[1:],
         "config": os.environ["XDG_CONFIG_HOME"],
         "tui": os.environ.get("OPENCODE_TUI_CONFIG"), "cwd": os.getcwd()}) + "\\n")
-sys.exit(11 if Path(sys.argv[0]).name == "opencode" else 7)
+sys.exit(11 if name == "opencode" else 7)
 ''')
             path.chmod(0o755)
 
@@ -265,10 +382,27 @@ sys.exit(11 if Path(sys.argv[0]).name == "opencode" else 7)
         (native_config / "original.json").write_text("{}\n")
         host_tui = Path(self.env["OX_HOST_CONFIG"]) / "tui.json"
         host_tui.write_text('{"theme":"test"}\n')
+        seed_auth = Path(self.env["OX_HOST_DATA_SEED"]) / "auth.json"
+        seed_auth.write_text('{"provider":"test"}\n')
         self.run_session("--", "opencode", "run", "a spaced prompt", "")
         self.assertEqual(native_config.resolve(), Path(self.env["OX_HOST_CONFIG"]))
         self.assertTrue((native_config.with_name("opencode.ox-original") / "original.json").exists())
         self.assertEqual(host_tui.read_text(), '{"theme":"test"}\n')
+        private_cache = self.home / ".cache" / "opencode"
+        private_data = self.home / ".local" / "share" / "opencode"
+        self.assertTrue(private_cache.is_dir())
+        self.assertFalse(private_cache.is_symlink())
+        self.assertTrue(private_data.is_dir())
+        self.assertFalse(private_data.is_symlink())
+        self.assertEqual((private_data / "auth.json").read_text(), '{"provider":"test"}\n')
+        self.assertNotEqual(private_data.resolve(), seed_auth.parent)
+        queued = private_data.parent / "ox" / "session-exports"
+        self.assertEqual({path.name.split(".")[0] for path in queued.glob("*.json")},
+                          {"ses_test123", "ses_changed"})
+        snapshot = next(queued.glob("ses_test123.*.json"))
+        self.assertEqual(snapshot.name, f"ses_test123.{hashlib.sha256(snapshot.read_bytes()).hexdigest()}.json")
+        self.assertEqual(json.loads(snapshot.read_text())["info"]["id"],
+                          "ses_test123")
         calls = [json.loads(line) for line in Path(self.env["SESSION_LOG"]).read_text().splitlines()]
         self.assertEqual([c["command"] for c in calls], ["opencode", "fish"])
         self.assertEqual(calls[0]["args"], ["run", "a spaced prompt", ""])
@@ -278,10 +412,33 @@ sys.exit(11 if Path(sys.argv[0]).name == "opencode" else 7)
         self.run_session("--", "shell", "-c", "true")
         self.assertEqual(native_config.resolve(), Path(self.env["OX_HOST_CONFIG"]))
 
+    def test_runtime_version_requires_no_mounts_or_setup(self):
+        del self.env["OX_HOST_CONFIG"]
+        del self.env["OX_HOST_DATA_SEED"]
+        self.assertEqual(self.run_session("--runtime-version", code=0).stdout, "2\n")
+        self.assertEqual(list(self.home.iterdir()), [])
+
+    def test_first_session_is_exported_from_empty_baseline(self):
+        self.env["EMPTY_BASELINE"] = "1"
+        self.run_session("--", "opencode")
+        exports = self.home / ".local/share/ox/session-exports"
+        self.assertEqual({path.name.split(".")[0] for path in exports.glob("*.json")},
+                         {"ses_test123", "ses_changed", "ses_unchanged"})
+
     def test_missing_mount_stops_before_agent(self):
-        self.env["OX_HOST_DATA"] = str(self.base / "not mounted")
+        self.env["OX_HOST_DATA_SEED"] = str(self.base / "not mounted")
         result = self.run_session("--", "opencode", code=1)
         self.assertIn("recreate", result.stderr)
+        self.assertFalse(Path(self.env["SESSION_LOG"]).exists())
+
+    def test_legacy_shared_data_stops_before_agent(self):
+        shared_data = self.base / "shared data"
+        shared_data.mkdir()
+        data_home = self.home / ".local" / "share"
+        data_home.mkdir(parents=True)
+        (data_home / "opencode").symlink_to(shared_data)
+        result = self.run_session("--", "opencode", code=1)
+        self.assertIn("refusing legacy shared OpenCode runtime", result.stderr)
         self.assertFalse(Path(self.env["SESSION_LOG"]).exists())
 
     def test_shell_mode_links_optional_auth_without_tui_override(self):

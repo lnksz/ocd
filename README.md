@@ -56,9 +56,11 @@ Podman uses a `keep-id` user namespace for the same ownership behavior.
 ## OpenCode in Docker Sandboxes (ox)
 
 `ox` provides the `ocd` workflow in a persistent, per-project microVM using the
-standalone Docker Sandboxes `sbx` CLI. It shares the same OpenCode configuration,
-cache, data and auth; supports `ox -s`; and opens Fish when OpenCode exits.
-The custom template includes the development toolbox and a private Docker Engine.
+standalone Docker Sandboxes `sbx` CLI. It shares OpenCode configuration, seeds
+login into private sandbox data, and can export session snapshots back to host
+OpenCode without sharing SQLite files. It supports `ox -s` and opens Fish when
+OpenCode exits. The custom template includes the development toolbox and a
+private Docker Engine.
 
 The publish workflow builds `docker.io/lnksz/ox:<OpenCode version>` and
 `docker.io/lnksz/ox:latest` in a separate job, daily at 02:00 UTC and on pushes

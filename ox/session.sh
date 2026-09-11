@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# The host checks this before supplying mount paths to a cached launcher.
+if [ "${1:-}" = --runtime-version ]; then
+	printf '2\n'
+	exit 0
+fi
+
 # Keep the template's agent account, HOME, proxy and Docker setup. Only link
 # agent-specific host directories. Existing sandbox defaults are kept once.
 export XDG_CONFIG_HOME="$HOME/.config"
@@ -28,8 +34,23 @@ link_directory() {
 }
 
 link_directory "${OX_HOST_CONFIG:?}" "$XDG_CONFIG_HOME/opencode"
-link_directory "${OX_HOST_CACHE:?}" "$XDG_CACHE_HOME/opencode"
-link_directory "${OX_HOST_DATA:?}" "$XDG_DATA_HOME/opencode"
+if [ ! -d "${OX_HOST_DATA_SEED:?}" ]; then
+	printf 'ox: missing credential seed %s; recreate with ox --rm, then ox\n' "$OX_HOST_DATA_SEED" >&2
+	exit 1
+fi
+for directory in "$XDG_CACHE_HOME/opencode" "$XDG_DATA_HOME/opencode"; do
+	if [ -L "$directory" ]; then
+		printf 'ox: refusing legacy shared OpenCode runtime %s; recreate with ox --rm, then ox\n' "$directory" >&2
+		exit 1
+	fi
+done
+mkdir -p "$XDG_CACHE_HOME/opencode" "$XDG_DATA_HOME/opencode"
+for file in auth.json account.json; do
+	if [ ! -e "$XDG_DATA_HOME/opencode/$file" ] && [ -r "$OX_HOST_DATA_SEED/$file" ]; then
+		install -m 0600 "$OX_HOST_DATA_SEED/$file" "$XDG_DATA_HOME/opencode/$file"
+	fi
+done
+unset OX_HOST_CACHE OX_HOST_DATA
 while [ "${1:-}" != -- ]; do
 	case "${1:-}" in
 	config/*) root="$XDG_CONFIG_HOME" ;;
@@ -59,6 +80,12 @@ if [ "$mode" = shell ]; then
 	exec fish "$@"
 fi
 export OPENCODE_TUI_CONFIG=/usr/local/share/ox/tui.json
+before_sessions="$(mktemp)"
+if opencode session list --format json >"$before_sessions" 2>/dev/null; then
+	baseline_ready=1
+else
+	baseline_ready=0
+fi
 set +e
 trap : INT
 opencode "$@"
@@ -67,4 +94,37 @@ if [ "$opencode_status" -ne 0 ] && [ "$opencode_status" -ne 130 ]; then
 	printf 'ox: OpenCode exited with status %s; use ox --print-logs --log-level DEBUG for startup diagnostics\n' \
 		"$opencode_status" >&2
 fi
+after_sessions="$(mktemp)"
+if [ "$baseline_ready" -eq 1 ] && opencode session list --format json >"$after_sessions" 2>/dev/null; then
+	export_dir="$XDG_DATA_HOME/ox/session-exports"
+	mkdir -p "$export_dir"
+	while IFS= read -r session_id; do
+		if [[ ! "$session_id" =~ ^ses_[A-Za-z0-9_-]+$ ]]; then
+			continue
+		fi
+		temporary="$export_dir/.$session_id.json.$$"
+		if opencode export "$session_id" >"$temporary" 2>/dev/null; then
+			snapshot_hash="$(sha256sum "$temporary")"
+			mv -f "$temporary" "$export_dir/$session_id.${snapshot_hash%% *}.json"
+			printf 'ox: queued %s; run ox --sync-sessions on the host to import it\n' "$session_id" >&2
+		else
+			rm -f "$temporary"
+			printf 'ox: failed to queue session snapshot %s\n' "$session_id" >&2
+		fi
+	done < <(node -e '
+const fs = require("fs")
+try {
+  // OpenCode prints nothing, rather than [], when no sessions exist.
+  const read = (file) => JSON.parse(fs.readFileSync(file, "utf8").trim() || "[]")
+  const before = new Map(read(process.argv[1]).map((item) => [item.id, item.updated]))
+  const after = read(process.argv[2])
+  for (const item of after) {
+    if (!before.has(item.id) || item.updated > before.get(item.id)) console.log(item.id)
+  }
+} catch (error) {
+  console.error("ox: failed to compare session snapshots:", error.message)
+}
+' "$before_sessions" "$after_sessions")
+fi
+rm -f "$before_sessions" "$after_sessions"
 exec fish
