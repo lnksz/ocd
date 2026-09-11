@@ -4,6 +4,7 @@ This repository provides separate Docker wrappers for coding agents:
 
 - `opencode/`: `Dockerfile`, `entrypoint.sh`, `ocd.fish`, and `update-tools.sh`
 - `pi/`: `Dockerfile`, `entrypoint.sh`, and `pid.fish`
+- `ox/`: Docker Sandbox `Dockerfile`, `session.sh`, and `ox.fish` (standalone sbx)
 - Root: shared `build-image.sh`
 
 Build from the repository root with each agent directory as its build context:
@@ -18,8 +19,10 @@ docker build -f pi/Dockerfile -t pid:dev pi
 ```bash
 hadolint opencode/Dockerfile
 hadolint pi/Dockerfile
-shellcheck build-image.sh opencode/entrypoint.sh opencode/update-tools.sh pi/entrypoint.sh
-fish -n opencode/ocd.fish pi/pid.fish
+hadolint ox/Dockerfile
+shellcheck build-image.sh opencode/entrypoint.sh opencode/update-tools.sh pi/entrypoint.sh ox/session.sh install.sh
+fish -n opencode/ocd.fish pi/pid.fish ox/ox.fish
+python3 -B -m unittest discover -s ox/tests -v
 ```
 
 Build/version the agent images:
@@ -27,6 +30,7 @@ Build/version the agent images:
 ```bash
 ./build-image.sh opencode latest
 ./build-image.sh pi latest
+./build-image.sh ox latest
 ./opencode/update-tools.sh
 ```
 
@@ -38,6 +42,10 @@ docker run --rm pid:dev bash -lc 'command -v pi >/dev/null'
 ```
 
 ## Rules
+
+- `ox` extends Docker's OpenCode sandbox template and preserves its runtime
+  entrypoint, labels and `agent` account. Its image must be imported with
+  `sbx template load` or published before use; see `ox/README.md`.
 
 - Keep agent-specific files inside that agent's directory. Do not add root compatibility loaders or shared agent Dockerfiles.
 - Keep images independent: OpenCode-only dependencies/config belong in `opencode/`; Pi-only dependencies/config belong in `pi/`.

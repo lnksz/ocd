@@ -1,11 +1,12 @@
 # Agent containers
 
-Run coding agents inside Docker or Podman against the current working directory.
+Run coding agents inside Docker, Podman, or Docker Sandboxes against the current working directory.
 
 Each agent is self-contained:
 
 - `opencode/`: OpenCode image, entrypoint, wrapper, and update script
 - `pi/`: Pi image, entrypoint, and wrapper
+- `ox/`: OpenCode Docker Sandbox template, session setup, and Fish wrapper
 - `build-image.sh`: shared versioned image builder
 
 ## OpenCode
@@ -52,11 +53,30 @@ before starting the agent. The account has passwordless `sudo` so agents can
 install additional tools without changing bind-mounted file ownership. Rootless
 Podman uses a `keep-id` user namespace for the same ownership behavior.
 
+## OpenCode in Docker Sandboxes (ox)
+
+`ox` provides the `ocd` workflow in a persistent, per-project microVM using the
+standalone Docker Sandboxes `sbx` CLI. It shares the same OpenCode configuration,
+cache, data and auth; supports `ox -s`; and opens Fish when OpenCode exits.
+The custom template includes the development toolbox and a private Docker Engine.
+
+The publish workflow builds `docker.io/lnksz/ox:<OpenCode version>` and
+`docker.io/lnksz/ox:latest` in a separate job, daily at 02:00 UTC and on pushes
+to `master`. Build manually with `./build-image.sh ox --push`. Existing sandboxes
+need a template refresh and recreation to adopt an update; see the ox guide.
+
+See **[ox setup and feature comparison](ox/README.md)** for installation,
+template build/import commands, `OX_*` overrides, and verification status.
+Linux with KVM and `sbx` 0.42.1+ is required. Install all three Fish functions
+with `bash ./install.sh`.
+
 ## Checks
 
 ```bash
 hadolint opencode/Dockerfile
 hadolint pi/Dockerfile
-shellcheck build-image.sh opencode/entrypoint.sh opencode/update-tools.sh pi/entrypoint.sh
-fish -n opencode/ocd.fish pi/pid.fish
+hadolint ox/Dockerfile
+shellcheck build-image.sh opencode/entrypoint.sh opencode/update-tools.sh pi/entrypoint.sh ox/session.sh install.sh
+fish -n opencode/ocd.fish pi/pid.fish ox/ox.fish
+python3 -B -m unittest discover -s ox/tests -v
 ```
