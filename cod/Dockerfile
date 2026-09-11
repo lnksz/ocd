@@ -1,0 +1,197 @@
+# syntax=docker/dockerfile:1.6
+FROM ubuntu:26.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    NPM_CONFIG_PREFIX=/usr/local \
+    PIPX_HOME=/opt/pipx \
+    PIPX_BIN_DIR=/usr/local/bin \
+    PIPX_DEFAULT_PYTHON=python3 \
+    EDITOR=nvim
+
+ARG NODE_VERSION=v24.20.0
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# ---- Base + main tools + diagnostics + QoL ----
+# hadolint ignore=DL3008
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl wget openssl \
+      git git-lfs openssh-client \
+      bash fish sudo util-linux neovim \
+      jq ripgrep fd-find fzf \
+      unzip zip xz-utils \
+      procps psmisc parallel \
+      build-essential pkg-config \
+      python3 python3-pip python3-venv pipx \
+      golang-go \
+      \
+      # C/C++ toolchain extras
+      gdb lldb \
+      cmake ninja-build ccache \
+      clang clangd clang-format clang-tidy clang-tools \
+      \
+      # Shell/YAML/Dockerfile/Markdown helpers & linters
+      shellcheck shfmt \
+      yamllint \
+      \
+      # Bucket 4: search/indexing/introspection
+      universal-ctags \
+      tree \
+      file \
+      less \
+      man-db \
+      \
+      # Bucket 5-ish: networking/diag
+      dnsutils iproute2 netcat-openbsd lsof strace inotify-tools \
+      \
+      # Bucket 6: QoL
+      bat git-delta eza tmux direnv \
+    && ln -sf /usr/bin/fdfind /usr/local/bin/fd \
+    && if command -v batcat >/dev/null 2>&1; then ln -sf "$(command -v batcat)" /usr/local/bin/bat; fi \
+    && if command -v bat >/dev/null 2>&1; then ln -sf "$(command -v bat)" /usr/local/bin/bat; fi \
+    && apt-get clean \
+    && if ! id _apt >/dev/null 2>&1; then useradd -r -u 42 -d /nonexistent -s /usr/sbin/nologin _apt; fi \
+    && printf 'ALL ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/99-nopasswd \
+    && chmod 0440 /etc/sudoers.d/99-nopasswd \
+    && visudo -cf /etc/sudoers
+
+# ---- Node.js runtime ----
+RUN set -euo pipefail; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+        amd64) node_arch=x64 ;; \
+        arm64) node_arch=arm64 ;; \
+        *) echo "Unsupported arch for Node.js: $arch" >&2; exit 1 ;; \
+    esac; \
+    node_dist="node-${NODE_VERSION}-linux-${node_arch}"; \
+    node_tarball="${node_dist}.tar.xz"; \
+    curl -fsSL "https://nodejs.org/dist/${NODE_VERSION}/${node_dist}.tar.xz" -o /tmp/node.tar.xz; \
+    curl -fsSL "https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt" -o /tmp/SHASUMS256.txt; \
+    expected_sha="$(grep " ${node_tarball}$" /tmp/SHASUMS256.txt | cut -d' ' -f1)"; \
+    printf '%s  %s\n' "$expected_sha" /tmp/node.tar.xz | sha256sum -c -; \
+    tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 --no-same-owner; \
+    rm -f /tmp/node.tar.xz /tmp/SHASUMS256.txt; \
+    node --version; \
+    npm --version
+
+# Pre-create synthetic HOME so bind-mounts don't become root-owned.
+RUN mkdir -p /tmp/home/.config /tmp/home/.cache /tmp/home/.local/share \
+    && chmod -R 0777 /tmp/home
+
+# ---- hadolint ----
+ARG HADOLINT_VERSION=v2.15.1
+RUN set -eu; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+        amd64) hadolint_arch=x86_64 ;; \
+        arm64) hadolint_arch=arm64 ;; \
+        *) echo "Unsupported arch for hadolint: $arch" >&2; exit 1 ;; \
+    esac; \
+    url="https://github.com/hadolint/hadolint/releases/download/${HADOLINT_VERSION}/hadolint-linux-${hadolint_arch}"; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$url" -o /usr/local/bin/hadolint; \
+    chmod +x /usr/local/bin/hadolint
+
+# ---- Prek ----
+ARG PREK_VERSION=v0.5.2
+RUN set -eu; \
+    archive="prek-x86_64-unknown-linux-gnu.tar.gz"; \
+    url="https://github.com/j178/prek/releases/download/${PREK_VERSION}/${archive}"; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$url" -o "/tmp/${archive}"; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors "${url}.sha256" -o /tmp/prek.sha256; \
+    expected_sha="$(cut -d' ' -f1 /tmp/prek.sha256)"; \
+    printf '%s  %s\n' "$expected_sha" "/tmp/${archive}" | sha256sum -c -; \
+    tar -xzf "/tmp/${archive}" -C /usr/local/bin --strip-components=1 --no-same-owner; \
+    prek --version; \
+    rm -f "/tmp/${archive}" /tmp/prek.sha256
+
+# ---- GitLab CLI (latest release, metadata invalidates the cache) ----
+# hadolint ignore=DL3020
+ADD https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/releases/permalink/latest /tmp/glab-release.json
+RUN set -eu; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+        amd64 | arm64) glab_arch="$arch" ;; \
+        *) echo "Unsupported arch for GitLab CLI: $arch" >&2; exit 1 ;; \
+    esac; \
+    tag_name="$(jq -er '.tag_name | select(startswith("v"))' /tmp/glab-release.json)"; \
+    version="${tag_name#v}"; \
+    asset_name="glab_${version}_linux_${glab_arch}.tar.gz"; \
+    asset_url="$(jq -er --arg name "$asset_name" '.assets.links[] | select(.name == $name) | .direct_asset_url' /tmp/glab-release.json)"; \
+    checksums_url="$(jq -er '.assets.links[] | select(.name == "checksums.txt") | .direct_asset_url' /tmp/glab-release.json)"; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$asset_url" -o "/tmp/${asset_name}"; \
+    curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$checksums_url" -o /tmp/checksums.txt; \
+    expected_sha="$(grep "  ${asset_name}$" /tmp/checksums.txt | cut -d' ' -f1)"; \
+    printf '%s  %s\n' "$expected_sha" "/tmp/${asset_name}" | sha256sum -c -; \
+    tar -xzf "/tmp/${asset_name}" -C /usr/local/bin --strip-components=1 bin/glab; \
+    chmod +x /usr/local/bin/glab; \
+    glab version; \
+    rm -f /tmp/glab-release.json "/tmp/${asset_name}" /tmp/checksums.txt
+
+# ---- Codex + JS toolchain ----
+ARG CODEX_VERSION=latest
+# hadolint ignore=DL3059
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm install -g --ignore-scripts "@openai/codex@${CODEX_VERSION}" \
+    && codex --version \
+    && npm install -g \
+      pnpm@11.25.0 \
+      @yarnpkg/cli-dist@4.18.0 \
+      typescript@7.0.2 typescript-language-server@6.0.0 \
+      vscode-langservers-extracted@4.10.0 \
+      bash-language-server@5.6.0 \
+      yaml-language-server@1.24.0 \
+      dockerfile-language-server-nodejs@0.15.0 \
+      @taplo/cli@0.7.0 \
+      hunkdiff@0.21.0 \
+      prettier@3.9.6 \
+      eslint@10.9.1 \
+      markdownlint-cli@0.49.1 \
+      pyright@1.1.413 \
+      @ansible/ansible-language-server@26.6.0
+
+# ---- Python toolchain ----
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    pipx install "python-lsp-server[all]==1.15.0" \
+    && pipx install "ruff==0.16.5" \
+    && pipx install "black==26.5.1" \
+    && pipx install "isort==9.0.1" \
+    && pipx install "mypy==2.3.1" \
+    && pipx install "cmake-language-server==0.1.5" \
+    && pipx install "ansible==14.3.1" \
+    && pipx install "ansible-lint==26.8.0" \
+    && pipx install "uv==0.12.9"
+
+# ---- Go toolchain ----
+ENV GOPATH=/opt/go
+RUN --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    --mount=type=cache,target=/opt/go/pkg/mod,sharing=locked \
+    mkdir -p "$GOPATH" \
+    && /usr/bin/go install golang.org/x/tools/gopls@latest \
+    && /usr/bin/go install golang.org/x/tools/cmd/goimports@latest \
+    && /usr/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+ENV PATH="/opt/go/bin:${PATH}"
+
+# Codex requires bubblewrap for its Linux sandbox. Keep its writable state
+# outside /tmp, where Codex refuses to create its PATH helper binaries.
+# hadolint ignore=DL3008
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends bubblewrap gh \
+    && apt-get clean \
+    && mkdir -p /var/lib/codex \
+    && chmod 0777 /var/lib/codex
+ENV CODEX_HOME=/var/lib/codex
+
+COPY integrate-config.py /usr/local/lib/cod/integrate-config.py
+RUN mv /usr/local/bin/codex /usr/local/bin/codex-native
+COPY codex.sh /usr/local/bin/codex
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/codex
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["fish"]

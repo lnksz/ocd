@@ -61,9 +61,22 @@ case "$target_dir" in
 	image_title="lnksz/ox"
 	create_git_tag=0
 	;;
+"$repo_root/cod")
+	agent_name="Codex"
+	pkg="@openai/codex"
+	requested_version="${CODEX_VERSION:-latest}"
+	pkg_build_arg_name=""
+	build_arg_name="CODEX_VERSION"
+	engine="${COD_ENGINE:-${CONTAINER_ENGINE:-}}"
+	image_repo="${COD_IMAGE_REPO:-docker.io/lnksz/cod}"
+	push_default="${COD_PUSH:-0}"
+	image_title="lnksz/cod"
+	create_git_tag=0
+	;;
 *)
 	printf 'Unsupported agent directory: %s\n' "$target_dir" >&2
-	printf 'Expected %s, %s or %s\n' "$repo_root/opencode" "$repo_root/pi" "$repo_root/ox" >&2
+	printf 'Expected %s, %s, %s or %s\n' \
+		"$repo_root/opencode" "$repo_root/pi" "$repo_root/ox" "$repo_root/cod" >&2
 	exit 2
 	;;
 esac
