@@ -85,7 +85,7 @@ RUN mkdir -p /tmp/home/.config /tmp/home/.cache /tmp/home/.local/share \
 
 # ---- hadolint (not always available in Ubuntu repos) ----
 ARG HADOLINT_VERSION=v2.15.1
-RUN set -euo pipefail; \
+RUN set -eu; \
     arch="$(dpkg --print-architecture)"; \
     case "$arch" in \
         amd64) hadolint_arch=x86_64 ;; \
@@ -98,7 +98,7 @@ RUN set -euo pipefail; \
 
 # ---- Prek (fast pre-commit alternative) ----
 ARG PREK_VERSION=v0.5.2
-RUN set -euo pipefail; \
+RUN set -eu; \
     archive="prek-x86_64-unknown-linux-gnu.tar.gz"; \
     url="https://github.com/j178/prek/releases/download/${PREK_VERSION}/${archive}"; \
     curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$url" -o "/tmp/${archive}"; \
@@ -114,7 +114,7 @@ RUN set -euo pipefail; \
 # invalidates this installation layer without pinning a version.
 # hadolint ignore=DL3020
 ADD https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/releases/permalink/latest /tmp/glab-release.json
-RUN set -euo pipefail; \
+RUN set -eu; \
     arch="$(dpkg --print-architecture)"; \
     case "$arch" in \
         amd64 | arm64) glab_arch="$arch" ;; \
@@ -136,7 +136,7 @@ RUN set -euo pipefail; \
 
 # ---- RTK (token-saving shell proxy for OpenCode) ----
 ARG RTK_VERSION=v0.47.0
-RUN set -euo pipefail; \
+RUN set -eu; \
     arch="$(dpkg --print-architecture)"; \
     case "$arch" in \
         amd64) rtk_target=x86_64-unknown-linux-musl ;; \
