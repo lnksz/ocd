@@ -57,6 +57,9 @@ jobs:
       - name: Test ox wrapper and image builder
         run: python3 -m unittest discover -s ox/tests -v
 
+      - name: Test OpenCode version guards
+        run: python3 -m unittest discover -s opencode/tests -v
+
       - name: Test Codex integration
         run: python3 -m unittest discover -s cod/tests -v
 

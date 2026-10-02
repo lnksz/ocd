@@ -27,6 +27,7 @@ hadolint cod/Dockerfile
 shellcheck build-image.sh install.sh opencode/entrypoint.sh opencode/update-tools.sh pi/entrypoint.sh ox/session.sh cod/entrypoint.sh cod/codex.sh
 fish -n opencode/ocd.fish pi/pid.fish ox/ox.fish cod/cod.fish
 python3 -B -m unittest discover -s ox/tests -v
+python3 -B -m unittest discover -s opencode/tests -v
 python3 -B -m unittest discover -s cod/tests -v
 ```
 

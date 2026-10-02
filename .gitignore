@@ -31,3 +31,7 @@ node_modules/
 
 # Local direnv state
 .direnv/
+
+# Private migration backups and local verification scripts
+.migration-backups/
+tmp/

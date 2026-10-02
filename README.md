@@ -21,8 +21,23 @@ ocd
 
 By default this uses `docker.io/lnksz/ocd:latest`. Override it with `OCD_IMAGE`, select an engine with `OCD_ENGINE`, or use `ocd --shell` to open `fish` instead of OpenCode.
 
-`ocd` starts OpenCode with `--auto`, automatically approving permissions that
-are not explicitly denied by the OpenCode configuration.
+`ocd` runs OpenCode V2 with `--standalone --auto`, using a private server in
+the container and automatically approving permissions that are not explicitly
+denied by the OpenCode configuration. Configuration, cache and session data
+remain shared with the host; service discovery state stays inside the container.
+
+Before mounting shared data, `ocd` checks the actual host and image executables.
+Their major and minor versions must match; patch versions may differ. Missing
+or unreadable versions also stop startup. The image entrypoint repeats this
+check using `HOST_OPENCODE_VERSION` before writing to mounted directories.
+Use `ocd --force-version-mismatch` to bypass this check explicitly, including
+`ocd --force-version-mismatch --shell`. This does not bypass other errors.
+Place wrapper flags before OpenCode/Fish arguments; `--` ends wrapper parsing.
+
+The image installs `@opencode/cli`. The RTK binary is available as a command,
+but the image does not install an OpenCode RTK plugin. Terminal settings use
+V2's `cli.json`; an inline override disables terminal suspension in `ocd`
+without replacing the host's other preferences.
 
 Build from the repository root:
 
@@ -30,6 +45,13 @@ Build from the repository root:
 docker build -f opencode/Dockerfile -t ocd:dev opencode
 ./build-image.sh opencode latest
 ```
+
+Before upgrading a shared database, stop all writers, back up all OpenCode
+XDG directories and symlink targets, and rehearse the upgrade on a copy.
+Rollback requires restoring the matching database, configuration, state,
+host executable and image together. Keep the original backup until the new
+setup has been verified. A matching major/minor version is a compatibility
+gate, not a guarantee that a forced downgrade can read a newer database.
 
 ## Pi
 

@@ -27,7 +27,7 @@ fi
 case "$target_dir" in
 "$repo_root/opencode")
 	agent_name="OpenCode"
-	pkg="${OPENCODE_PKG:-opencode-ai}"
+	pkg="${OPENCODE_PKG:-@opencode/cli}"
 	requested_version="${OPENCODE_VERSION:-latest}"
 	pkg_build_arg_name="OPENCODE_PKG"
 	build_arg_name="OPENCODE_VERSION"
@@ -148,10 +148,12 @@ printf 'Building %s (%s %s@%s -> %s)\n' \
 	-t "$tag_latest" \
 	"$target_dir"
 
-if [[ "$target_dir" == "$repo_root/ox" ]]; then
+if [[ "$target_dir" == "$repo_root/ox" || "$target_dir" == "$repo_root/opencode" ]]; then
 	# Check the executable selected by the image PATH, not just npm metadata:
 	# the upstream sandbox template also ships an OpenCode installation.
 	actual_version="$("$engine" run --rm --entrypoint opencode "$tag_version" --version)"
+	actual_version="${actual_version#opencode }"
+	actual_version="${actual_version#v}"
 	if [[ "$actual_version" != "$resolved_version" ]]; then
 		printf 'OpenCode version mismatch: expected %s, got %s\n' "$resolved_version" "$actual_version" >&2
 		exit 1

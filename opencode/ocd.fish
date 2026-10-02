@@ -1,4 +1,18 @@
 function ocd --description "run OpenCode in Docker/Podman"
+    set -l force_version_mismatch 0
+    while test (count $argv) -gt 0
+        switch "$argv[1]"
+            case --force-version-mismatch
+                set force_version_mismatch 1
+                set argv $argv[2..-1]
+            case --
+                set argv $argv[2..-1]
+                break
+            case '*'
+                break
+        end
+    end
+
     # Container engine and image override:
     # - `set -x OCD_ENGINE podman|docker`
     # - `set -x OCD_IMAGE docker.io/lnksz/ocd:latest`
@@ -21,6 +35,30 @@ function ocd --description "run OpenCode in Docker/Podman"
     else
         set image docker.io/lnksz/ocd:latest
     end
+    # Probe without mounts so even an old image cannot touch shared data.
+    set -l host_version (command opencode --version 2>/dev/null)
+    set -l host_version_status $status
+    set -l guest_version ($engine run --rm --entrypoint opencode $image --version)
+    set -l guest_version_status $status
+    set -l version_pattern '^(opencode[[:space:]]+)?v?([0-9]+)\.([0-9]+)\.([0-9]+)([-+][[:alnum:].-]+)?$'
+    set -l host_series
+    set -l guest_series
+    if test $host_version_status -eq 0; and test (count $host_version) -eq 1; and string match -rq -- $version_pattern "$host_version"
+        set host_series (string replace -r -- $version_pattern '$2.$3' "$host_version")
+    end
+    if test $guest_version_status -eq 0; and test (count $guest_version) -eq 1; and string match -rq -- $version_pattern "$guest_version"
+        set guest_series (string replace -r -- $version_pattern '$2.$3' "$guest_version")
+    end
+    if test -z "$host_series"; or test -z "$guest_series"; or test "$host_series" != "$guest_series"
+        if test $force_version_mismatch -ne 1
+            printf 'ocd: incompatible or unknown OpenCode versions (host: %s; guest: %s). Use --force-version-mismatch to override.\n' \
+                "$host_version" "$guest_version" 1>&2
+            return 1
+        end
+        printf 'ocd: forcing OpenCode startup (host: %s; guest: %s).\n' \
+            "$host_version" "$guest_version" 1>&2
+    end
+
     set -l pwd_real (pwd)
 
     # Linked worktrees refer to the main checkout's .git directory. Preserve
@@ -90,12 +128,12 @@ function ocd --description "run OpenCode in Docker/Podman"
             return 1
         end
 
-        if not read -l mem_label mem_total_kb mem_unit < /proc/meminfo
+        if not read -l mem_label mem_total_kb mem_unit </proc/meminfo
             printf 'ocd: failed to read /proc/meminfo\n' 1>&2
             return 1
         end
 
-        if test "$mem_label" != 'MemTotal:'; or not string match -rq '^[0-9]+$' -- "$mem_total_kb"; or test "$mem_unit" != 'kB'
+        if test "$mem_label" != 'MemTotal:'; or not string match -rq '^[0-9]+$' -- "$mem_total_kb"; or test "$mem_unit" != kB
             printf 'ocd: failed to determine host memory size\n' 1>&2
             return 1
         end
@@ -146,7 +184,7 @@ function ocd --description "run OpenCode in Docker/Podman"
 
     # Mount targets of symlinked config files because they may live outside
     # the host paths shared with the container.
-    for cfg_file in "$host_cfg/AGENTS.md" "$host_cfg/opencode.json" "$host_cfg/opencode.jsonc"
+    for cfg_file in "$host_cfg/AGENTS.md" "$host_cfg/opencode.json" "$host_cfg/opencode.jsonc" "$host_cfg/cli.json"
         if test -L "$cfg_file"
             set -l cfg_target (readlink -f -- "$cfg_file" 2>/dev/null)
             if test -n "$cfg_target"
@@ -181,7 +219,9 @@ function ocd --description "run OpenCode in Docker/Podman"
     set -l is_shell_mode 0
     set -l cmd
     set -l cmd_args
-    if test (count $argv) -gt 0; and begin; test "$argv[1]" = "--shell"; or test "$argv[1]" = "-s"; end
+    if test (count $argv) -gt 0; and begin
+            test "$argv[1]" = --shell; or test "$argv[1]" = -s
+        end
         set is_shell_mode 1
         set cmd fish
         if test (count $argv) -gt 1
@@ -192,29 +232,16 @@ function ocd --description "run OpenCode in Docker/Podman"
     else
         set -l opencode_wrapper 'set -uo pipefail
 trap : INT
-opencode --auto "$@"
+opencode --standalone --auto "$@"
 exec fish'
 
         set cmd bash
         set cmd_args -c "$opencode_wrapper" ocd-opencode $argv
     end
 
-    set -l override_mounts
-    set -l tui_override_dir
+    set -l cli_flags
     if test $is_shell_mode -eq 0
-        set tui_override_dir (mktemp -d 2>/dev/null)
-        if test -z "$tui_override_dir"
-            printf 'ocd: failed to create temporary TUI config directory\n' 1>&2
-            return 1
-        end
-
-        if not printf '%s\n' '{"keybinds":{"terminal_suspend":"none"}}' > "$tui_override_dir/tui.json"
-            rm -rf "$tui_override_dir"
-            printf 'ocd: failed to write temporary TUI config\n' 1>&2
-            return 1
-        end
-
-        set override_mounts -v "$tui_override_dir/tui.json:/tmp/home/.config/opencode/tui.json:ro"
+        set cli_flags -e 'OPENCODE_CLI_CONFIG_CONTENT={"keybinds":{"terminal.suspend":"none"}}'
     end
 
     $engine run --rm -it \
@@ -222,6 +249,9 @@ exec fish'
         $identity_flags \
         $resource_flags \
         $env_file \
+        -e "HOST_OPENCODE_VERSION=$host_version" \
+        -e "OCD_FORCE_VERSION_MISMATCH=$force_version_mismatch" \
+        -e XDG_STATE_HOME=/tmp/home/.local/state \
         -e HOST_UID=(id -u) \
         -e HOST_GID=(id -g) \
         -e HOST_USER=(whoami) \
@@ -235,14 +265,10 @@ exec fish'
         -v "$host_cache:/tmp/home/.cache/opencode" \
         -v "$host_data:/tmp/home/.local/share/opencode" \
         $extra_mounts \
-        $override_mounts \
+        $cli_flags \
         $terminal_flags \
         $image \
         $cmd $cmd_args
 
-    set -l exit_status $status
-    if test -n "$tui_override_dir"; and test -d "$tui_override_dir"
-        rm -rf "$tui_override_dir"
-    end
-    return $exit_status
+    return $status
 end

@@ -103,13 +103,23 @@ class BuildImageTests(unittest.TestCase):
         self.assertIn("version mismatch", result.stderr)
         self.assertFalse(any(call[0] == "push" for call in self.calls()))
 
+    def test_opencode_verifies_prefixed_v2_binary_version(self):
+        self.env.update(RESOLVED_VERSION="2.0.22", ACTUAL_VERSION="opencode v2.0.22")
+        self.run_build("opencode", "--push")
+        self.assertEqual(self.calls()[-1], ["push", "docker.io/lnksz/ocd:latest"])
+
     def test_existing_agent_builds_keep_their_packages_and_tags(self):
-        for target, package, image in (("opencode", "opencode-ai", "ocd"),
+        for target, package, image in (("opencode", "@opencode/cli", "ocd"),
                                        ("pi", "@earendil-works/pi-coding-agent", "pid")):
             with self.subTest(target=target):
                 Path(self.env["CALLS"]).unlink(missing_ok=True)
                 self.run_build(target, "--push")
-                resolve, _, version, latest = self.calls()
+                calls = self.calls()
+                resolve = calls[0]
+                version, latest = calls[-2:]
+                if target == "opencode":
+                    self.assertEqual(calls[2], ["run", "--rm", "--entrypoint", "opencode",
+                                              "docker.io/lnksz/ocd:1.2.3", "--version"])
                 self.assertIn(f"{package}@latest", resolve)
                 self.assertEqual(version, ["push", f"docker.io/lnksz/{image}:1.2.3"])
                 self.assertEqual(latest, ["push", f"docker.io/lnksz/{image}:latest"])

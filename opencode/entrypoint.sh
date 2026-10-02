@@ -1,6 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Check before writing to any mounted configuration or data. Direct docker
+# invocations can omit HOST_OPENCODE_VERSION; ocd always supplies it.
+if [[ -v HOST_OPENCODE_VERSION ]]; then
+	# V2 initializes XDG directories even for --version. Keep the probe private,
+	# especially before dropping root, so it cannot create root-owned host state.
+	version_home="$(mktemp -d /tmp/ocd-version.XXXXXX)"
+	guest_version="$(HOME="$version_home" TMPDIR="$version_home" \
+		XDG_CONFIG_HOME="$version_home/config" XDG_CACHE_HOME="$version_home/cache" \
+		XDG_DATA_HOME="$version_home/data" XDG_STATE_HOME="$version_home/state" \
+		opencode --version 2>/dev/null || true)"
+	rm -rf "$version_home"
+	version_pattern='^(opencode[[:space:]]+)?v?([0-9]+)\.([0-9]+)\.([0-9]+)([-+][[:alnum:].-]+)?$'
+	host_series=""
+	guest_series=""
+	if [[ "$HOST_OPENCODE_VERSION" =~ $version_pattern ]]; then
+		host_series="${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+	fi
+	if [[ "$guest_version" =~ $version_pattern ]]; then
+		guest_series="${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+	fi
+	if [[ -z "$host_series" || -z "$guest_series" || "$host_series" != "$guest_series" ]]; then
+		if [[ "${OCD_FORCE_VERSION_MISMATCH:-0}" != 1 ]]; then
+			printf 'ocd: incompatible or unknown OpenCode versions (host: %s; guest: %s). Use --force-version-mismatch to override.\n' \
+				"${HOST_OPENCODE_VERSION:-unknown}" "${guest_version:-unknown}" >&2
+			exit 1
+		fi
+		printf 'ocd: forcing OpenCode startup (host: %s; guest: %s).\n' \
+			"${HOST_OPENCODE_VERSION:-unknown}" "${guest_version:-unknown}" >&2
+	fi
+fi
+
 # Create a real account for the host identity before dropping privileges. This
 # keeps NSS, setuid programs, sanitizers, and static binaries on their normal paths.
 : "${HOME:=/tmp/home}"
@@ -80,16 +111,6 @@ export USER="$RUNTIME_USER"
 export LOGNAME="$RUNTIME_USER"
 
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_DATA_HOME" >/dev/null 2>&1 || true
-
-# Seed the RTK OpenCode plugin after bind mounts are in place.
-rtk_plugin_template="/usr/local/share/rtk/opencode-rtk.ts"
-rtk_plugin_dir="$XDG_CONFIG_HOME/opencode/plugins"
-rtk_plugin_path="$rtk_plugin_dir/rtk.ts"
-if [ -r "$rtk_plugin_template" ]; then
-	if ! mkdir -p "$rtk_plugin_dir" || ! install -m 0644 "$rtk_plugin_template" "$rtk_plugin_path"; then
-		printf 'warning: failed to install RTK plugin at %s\n' "$rtk_plugin_path" >&2
-	fi
-fi
 
 # ---- Git safe.directory handling ----
 # If we're exactly at the root of a git repo, mark it safe (avoid "dubious ownership")

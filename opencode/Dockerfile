@@ -134,7 +134,7 @@ RUN set -eu; \
     glab version; \
     rm -f /tmp/glab-release.json "/tmp/${asset_name}" /tmp/checksums.txt
 
-# ---- RTK (token-saving shell proxy for OpenCode) ----
+# ---- RTK command-line tool ----
 ARG RTK_VERSION=v0.47.0
 RUN set -eu; \
     arch="$(dpkg --print-architecture)"; \
@@ -148,18 +148,15 @@ RUN set -eu; \
         -o /tmp/rtk.tar.gz; \
     tar -xzf /tmp/rtk.tar.gz -C /usr/local/bin rtk; \
     chmod +x /usr/local/bin/rtk; \
-    install -d /usr/local/share/rtk; \
-    curl -fL --retry 6 --retry-delay 2 --retry-all-errors \
-        "https://raw.githubusercontent.com/rtk-ai/rtk/${RTK_VERSION}/hooks/opencode/rtk.ts" \
-        -o /usr/local/share/rtk/opencode-rtk.ts; \
     rm -f /tmp/rtk.tar.gz
 
 # ---- opencode (adjust package name/version if needed) ----
-ARG OPENCODE_PKG=opencode-ai
-ARG OPENCODE_VERSION=latest
+ARG OPENCODE_PKG=@opencode/cli
+ARG OPENCODE_VERSION=2.0.22
 # hadolint ignore=DL3059
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
-    npm install -g "${OPENCODE_PKG}@${OPENCODE_VERSION}" \
+    npm install -g --allow-scripts="${OPENCODE_PKG}" "${OPENCODE_PKG}@${OPENCODE_VERSION}" \
+    && opencode --version \
     && \
     # Install pnpm/yarn directly from npm to avoid corepack's extra Yarn registry lookup.
     npm install -g \
