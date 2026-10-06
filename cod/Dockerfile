@@ -78,6 +78,14 @@ RUN set -euo pipefail; \
     node --version; \
     npm --version
 
+# ---- ast-grep structural search and code outlines ----
+ARG AST_GREP_VERSION=0.45.3
+# hadolint ignore=DL3059
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm install -g --include=optional --allow-scripts="@ast-grep/cli" "@ast-grep/cli@${AST_GREP_VERSION}" \
+    && ast-grep --version \
+    && ast-grep outline --help >/dev/null
+
 # Pre-create synthetic HOME so bind-mounts don't become root-owned.
 RUN mkdir -p /tmp/home/.config /tmp/home/.cache /tmp/home/.local/share \
     && chmod -R 0777 /tmp/home

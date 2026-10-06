@@ -46,6 +46,14 @@ RUN set -eu; \
     tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 --no-same-owner; \
     rm -f /tmp/node.tar.xz /tmp/SHASUMS256.txt
 
+# ---- ast-grep structural search and code outlines ----
+ARG AST_GREP_VERSION=0.45.3
+# hadolint ignore=DL3059
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm install -g --include=optional --allow-scripts="@ast-grep/cli" "@ast-grep/cli@${AST_GREP_VERSION}" \
+    && ast-grep --version \
+    && ast-grep outline --help >/dev/null
+
 ARG HADOLINT_VERSION=v2.15.1
 ARG PREK_VERSION=v0.5.2
 ARG RTK_VERSION=v0.47.0
