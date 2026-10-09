@@ -88,6 +88,21 @@ function ox --description "run OpenCode in a Docker Sandbox"
     # Preserve external targets of the config links handled by ocd. sbx
     # workspace arguments must be directories, even for read-only shares.
     set -l config_file_targets
+    if test -d "$HOME/.agents"
+        set -l shared_agents (path resolve "$HOME/.agents")
+        set -a mounts "$shared_agents:ro"
+        set -a links home/.agents "$shared_agents"
+        for entry in "$shared_agents"/* "$shared_agents/skills"/*
+            if test -L "$entry"
+                set -l target (path resolve "$entry")
+                if test -d "$target"
+                    set -a mounts "$target:ro"
+                else if test -f "$target"
+                    set -a config_file_targets "$target"
+                end
+            end
+        end
+    end
     for entry in AGENTS.md opencode.json opencode.jsonc commands agents skills
         set -l src "$host_cfg/$entry"
         if test -L "$src"
@@ -95,7 +110,9 @@ function ox --description "run OpenCode in a Docker Sandbox"
             if test -f "$target"
                 set -a config_file_targets "$target"
             else if test -d "$target"
-                set -a mounts "$target"
+                if not contains -- "$target" $mounts; and not contains -- "$target:ro" $mounts
+                    set -a mounts "$target"
+                end
             else
                 printf 'ox: broken config symlink: %s\n' "$src" 1>&2
                 return 1
@@ -237,8 +254,8 @@ function ox --description "run OpenCode in a Docker Sandbox"
     # resetting the image PATH that contains OpenCode and the development tools.
     command sbx exec -it --workdir "$workspace" $session_env "$name" \
         bash -c '
-if [ "$(env -u OX_HOST_CONFIG /usr/local/bin/ox-session --runtime-version 2>/dev/null)" != 2 ]; then
-    printf "ox: this sandbox has an outdated session launcher (private runtime v2 required).\n" >&2
+if [ "$(env -u OX_HOST_CONFIG /usr/local/bin/ox-session --runtime-version 2>/dev/null)" != 3 ]; then
+    printf "ox: this sandbox has an outdated session launcher (shared agents runtime v3 required).\n" >&2
     printf "ox: rebuild/load the template from this checkout, or refresh a published update:\n" >&2
     printf "    ox --rm\n    sbx template rm %q\n    ox\n" "$1" >&2
     printf "ox: recreating alone reuses the cached image; see ox/README.md, Apply a published update.\n" >&2

@@ -101,6 +101,29 @@ class VersionGateTests(GateTestCase):
         self.assertEqual(calls[1][-1],'--force-version-mismatch')
         self.assertIn('OCD_FORCE_VERSION_MISMATCH=0',calls[1])
 
+class SharedAgentsTests(GateTestCase):
+    def test_missing_folder_is_not_created_or_mounted(self):
+        _, calls = self.launch('--shell')
+        self.assertFalse((self.home / '.agents').exists())
+        self.assertFalse(any(':/tmp/home/.agents:' in arg for arg in calls[1]))
+
+    def test_shared_folder_and_external_skills_are_mounted_read_only(self):
+        shared = self.home / '.agents'
+        shared.mkdir()
+        (shared / 'config.json').write_text('{}')
+        skills = self.root / 'external skills'
+        skills.mkdir()
+        other = self.root / 'external skill'
+        other.mkdir()
+        (other / 'SKILL.md').write_text('shared skill')
+        (skills / 'other').symlink_to(other, target_is_directory=True)
+        (shared / 'skills').symlink_to(skills, target_is_directory=True)
+        _, calls = self.launch('--shell')
+        for mount in (f'{shared}:/tmp/home/.agents:ro', f'{skills}:{skills}:ro',
+                      f'{other}:{other}:ro'):
+            self.assertIn(mount, calls[1])
+        self.assertNotIn(f'{self.home}:{self.home}', calls[1])
+
 class EntrypointGateTests(GateTestCase):
     def launch_entrypoint(self,host,guest,force=False,code=0):
         self.env.update(HOST_OPENCODE_VERSION=host, HOST_VERSION=guest,

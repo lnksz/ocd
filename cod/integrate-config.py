@@ -8,6 +8,18 @@ import re
 from pathlib import Path
 
 
+def integrate_agents(source: Path, destination: Path) -> None:
+    """Expose shared files alongside the separately generated skills directory."""
+    destination.mkdir(parents=True, exist_ok=True)
+    if source.is_dir():
+        for path in sorted(source.iterdir()):
+            if path.name != "skills":
+                target = destination / path.name
+                if target.is_symlink():
+                    target.unlink()
+                target.symlink_to(path, target_is_directory=path.is_dir())
+
+
 def integrate(source: Path, shared: Path, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     # OpenCode wins for the same directory name. Do not modify mounted sources.
@@ -60,7 +72,9 @@ def integrate(source: Path, shared: Path, destination: Path) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=Path("/tmp/cod-opencode"))
-    parser.add_argument("--shared", type=Path, default=Path("/tmp/cod-shared-skills"))
+    parser.add_argument("--agents", type=Path, default=Path("/tmp/cod-agents"))
+    parser.add_argument("--shared", type=Path, default=Path("/tmp/cod-agents/skills"))
     parser.add_argument("--destination", type=Path, required=True)
     args = parser.parse_args()
+    integrate_agents(args.agents, args.destination.parent)
     integrate(args.source, args.shared, args.destination)

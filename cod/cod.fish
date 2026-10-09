@@ -91,9 +91,11 @@ function cod --description "run Codex in Docker/Podman"
         set extra_mounts $extra_mounts -v "$external_git_dir:$external_git_dir"
     end
     # Source mounts stay read-only; the entrypoint assembles ephemeral skills.
+    # Retain the shared-skills alias for images built before full .agents support.
     set -l mount_pairs \
         "$xdg_config/gh:/tmp/home/.config/gh" \
         "$xdg_cache/gh:/tmp/home/.cache/gh" \
+        "$HOME/.agents:/tmp/cod-agents:ro" \
         "$HOME/.agents/skills:/tmp/cod-shared-skills:ro" \
         "$xdg_config/opencode/skills:/tmp/cod-opencode/skills:ro" \
         "$xdg_config/opencode/commands:/tmp/cod-opencode/commands:ro" \
@@ -102,6 +104,16 @@ function cod --description "run Codex in Docker/Podman"
         set -l parts (string split -m1 : -- "$pair")
         if test -d "$parts[1]"
             set extra_mounts $extra_mounts -v "$pair"
+            if test "$parts[2]" = /tmp/cod-agents:ro
+                for entry in "$parts[1]"/* "$parts[1]/skills"/*
+                    if test -L "$entry"; and test -e "$entry"
+                        set -l target (readlink -f -- "$entry")
+                        if not contains -- "$target:$target:ro" $extra_mounts
+                            set extra_mounts $extra_mounts -v "$target:$target:ro"
+                        end
+                    end
+                end
+            end
             # Skill folders are often symlinks into a separate dotfiles checkout.
             if contains -- "$parts[2]" /tmp/cod-shared-skills:ro /tmp/cod-opencode/skills:ro
                 set -l destination (string replace -r ':ro$' '' -- "$parts[2]")

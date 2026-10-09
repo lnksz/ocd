@@ -120,6 +120,7 @@ sandbox-local files do not.
 | GitHub CLI/Copilot auth | Same existing `gh/` and `github-copilot/` directories as `ocd` |
 | Linked worktrees | Mount the external Git common directory as well, without mounting the main working tree |
 | Symlinked config | Share commands/agents/skills directory targets; share the immediate parent of external `AGENTS.md` and `opencode.json[c]` file targets read-only |
+| Global `~/.agents/` | Optional read-only share linked into the agent home, including external symlinked skill targets |
 | Terminal | Forward `TERM`, `TERM_PROGRAM`, `COLORTERM`, and optional terminfo; disable OpenCode's terminal-suspend key through a sandbox-only TUI override |
 | Development toolbox | Fish, Node, C/C++, Python, Go, Ansible, LSPs, linters, Hunk, RTK and its plugin, Prek, GitHub/GitLab CLIs |
 | Default resources | 60% RAM; 60% CPUs rounded down to whole vCPUs, minimum one |
@@ -175,7 +176,7 @@ Existing sandboxes keep their original filesystem and installed binaries.
 not guarantee the required launcher is available. Some sbx versions also resolve
 registry tags again during creation, replacing a locally loaded build with the
 published image. The wrapper checks the launcher's runtime version before setup
-and rejects images that predate private OpenCode data.
+and rejects images that predate private OpenCode data or global `.agents` support.
 
 For a host without Docker, exit the current session, select the published
 template, remove the sandbox and its cached template tag, then recreate:

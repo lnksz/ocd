@@ -174,6 +174,31 @@ class WrapperTests(unittest.TestCase):
         self.assertNotIn(f"{self.workspace}:ro", mounts)
         self.assertNotIn(f"{self.cfg}:ro", mounts)
 
+    def test_shared_agents_and_symlinked_skills_are_read_only(self):
+        shared = self.home / ".agents"
+        shared.mkdir()
+        skills = self.base / "external skills"
+        skills.mkdir()
+        other = self.base / "external skill"
+        other.mkdir()
+        (skills / "other").symlink_to(other, target_is_directory=True)
+        (shared / "skills").symlink_to(skills, target_is_directory=True)
+        (self.cfg / "skills").symlink_to(skills, target_is_directory=True)
+        self.run_ox()
+        _, create, execute = self.calls()
+        for target in (shared, skills, other):
+            self.assertIn(f"{target}:ro", create)
+            self.assertEqual(create.count(f"{target}:ro"), 1)
+        self.assertNotIn(str(skills), create)
+        self.assertNotIn(str(self.home), create)
+        self.assertIn("home/.agents", execute)
+        self.assertIn(str(shared), execute)
+
+    def test_missing_shared_agents_is_not_created_or_mounted(self):
+        self.run_ox()
+        self.assertFalse((self.home / ".agents").exists())
+        self.assertNotIn("home/.agents", self.calls()[-1])
+
     def test_config_file_in_symlinked_skills_reuses_directory_share(self):
         skills = self.base / "shared skills"
         skills.mkdir()
@@ -256,7 +281,7 @@ class WrapperTests(unittest.TestCase):
     def test_current_launcher_handshake_preserves_arguments(self):
         launcher = self.base / "current launcher"
         launcher.write_text('''#!/bin/bash
-if [ "$1" = --runtime-version ]; then printf '2\\n'; exit; fi
+if [ "$1" = --runtime-version ]; then printf '3\\n'; exit; fi
 printf '<%s>\\n' "$@"
 ''')
         launcher.chmod(0o755)
@@ -415,7 +440,7 @@ sys.exit(11 if name == "opencode" else 7)
     def test_runtime_version_requires_no_mounts_or_setup(self):
         del self.env["OX_HOST_CONFIG"]
         del self.env["OX_HOST_DATA_SEED"]
-        self.assertEqual(self.run_session("--runtime-version", code=0).stdout, "2\n")
+        self.assertEqual(self.run_session("--runtime-version", code=0).stdout, "3\n")
         self.assertEqual(list(self.home.iterdir()), [])
 
     def test_first_session_is_exported_from_empty_baseline(self):
@@ -451,6 +476,14 @@ sys.exit(11 if name == "opencode" else 7)
         self.assertEqual(calls[0]["command"], "fish")
         self.assertEqual(calls[0]["args"], ["-c", "a command"])
         self.assertIsNone(calls[0]["tui"])
+
+    def test_shared_agents_is_linked_into_home(self):
+        shared = self.base / "shared agents"
+        shared.mkdir()
+        (shared / "config.json").write_text("shared")
+        self.run_session("home/.agents", str(shared), "--", "shell")
+        self.assertEqual((self.home / ".agents").resolve(), shared)
+        self.assertEqual((self.home / ".agents/config.json").read_text(), "shared")
 
 
 if __name__ == "__main__":

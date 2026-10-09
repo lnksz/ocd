@@ -117,7 +117,7 @@ function pid --description "run Pi coding agent in Docker/Podman"
         "$xdg_config/github-copilot:/tmp/home/.config/github-copilot" \
         "$xdg_cache/github-copilot:/tmp/home/.cache/github-copilot" \
         "$xdg_data/github-copilot:/tmp/home/.local/share/github-copilot" \
-        "$HOME/.agents:/tmp/home/.agents" \
+        "$HOME/.agents:/tmp/home/.agents:ro" \
         "$xdg_config/opencode/skills:/tmp/home/.pi/agent/skills/opencode" \
         "$xdg_config/opencode/commands:/tmp/home/.pi/agent/prompts/opencode-commands" \
         "$xdg_config/opencode/agents:/tmp/home/.pi/agent/prompts/opencode-agents"
@@ -127,6 +127,17 @@ function pid --description "run Pi coding agent in Docker/Podman"
         set -l src $parts[1]
         if test -d "$src"
             set extra_mounts $extra_mounts -v $pair
+            # Preserve shared skills linked into external dotfiles directories.
+            if test "$parts[2]" = /tmp/home/.agents:ro
+                for entry in "$src"/* "$src/skills"/*
+                    if test -L "$entry"; and test -e "$entry"
+                        set -l target (readlink -f -- "$entry")
+                        if not contains -- "$target:$target:ro" $extra_mounts
+                            set extra_mounts $extra_mounts -v "$target:$target:ro"
+                        end
+                    end
+                end
+            end
         end
     end
 

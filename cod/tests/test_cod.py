@@ -36,6 +36,20 @@ class IntegrationTests(TemporaryTree):
     def test_missing_optional_sources(self):
         self.assertEqual(list(self.integrate().iterdir()), [])
 
+    def test_shared_agents_preserves_files_and_generated_skills(self):
+        source = self.write("shared-agents/config.json", "shared config").parent
+        self.write("shared-agents/references/guide.md", "shared reference")
+        self.write("shared-agents/skills/review/SKILL.md", "shared skill")
+        destination = self.root / "home/.agents"
+        self.write("home/.agents/skills/generated/SKILL.md", "generated skill")
+        CONFIG.integrate_agents(source, destination)
+        self.assertEqual((destination / "config.json").read_text(), "shared config")
+        self.assertEqual((destination / "references/guide.md").read_text(), "shared reference")
+        self.assertTrue((destination / "references").is_symlink())
+        self.assertEqual((destination / "skills/generated/SKILL.md").read_text(), "generated skill")
+        self.assertFalse((destination / "skills/review").exists())
+        self.assertEqual((source / "skills/review/SKILL.md").read_text(), "shared skill")
+
     def test_opencode_skill_precedence_and_resources(self):
         self.write("shared/review/SKILL.md", "shared")
         self.write("shared/other/SKILL.md", "other")
@@ -139,8 +153,32 @@ cod $argv[2..-1]
         args = self.run_wrapper("-s").stdout.decode().split("\0")[:-1]
         self.assertIn(f"{native}:/var/lib/codex", args)
         self.assertIn(f"{self.home}/config/opencode/skills:/tmp/cod-opencode/skills:ro", args)
+        self.assertIn(f"{self.home}/.agents:/tmp/cod-agents:ro", args)
         self.assertIn(f"{self.home}/.agents/skills:/tmp/cod-shared-skills:ro", args)
         self.assertEqual(args[-1], "fish")
+
+    def test_missing_shared_agents_is_not_created_or_mounted(self):
+        args = self.run_wrapper("-s").stdout.decode().split("\0")[:-1]
+        self.assertFalse((self.home / ".agents").exists())
+        self.assertFalse(any(":/tmp/cod-agents:" in arg for arg in args))
+
+    def test_shared_agents_without_skills_is_mounted(self):
+        self.write("home/.agents/config.json", "shared")
+        args = self.run_wrapper("-s").stdout.decode().split("\0")[:-1]
+        self.assertIn(f"{self.home}/.agents:/tmp/cod-agents:ro", args)
+        self.assertFalse((self.home / ".agents/skills").exists())
+
+    def test_shared_symlinked_skills_keep_external_targets_read_only(self):
+        skills = self.write("external/skills/review/SKILL.md", "review").parents[1]
+        other = self.write("external/other/SKILL.md", "other").parent
+        (skills / "other").symlink_to(other, target_is_directory=True)
+        shared = self.home / ".agents"
+        shared.mkdir()
+        (shared / "skills").symlink_to(skills, target_is_directory=True)
+        args = self.run_wrapper("-s").stdout.decode().split("\0")[:-1]
+        for target in (skills, other):
+            self.assertIn(f"{target}:{target}:ro", args)
+        self.assertNotIn(f"{skills.parent}:{skills.parent}:ro", args)
 
     def test_default_limits_ignore_other_agents(self):
         del self.env["COD_CPUS"]

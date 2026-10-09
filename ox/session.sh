@@ -3,7 +3,7 @@ set -euo pipefail
 
 # The host checks this before supplying mount paths to a cached launcher.
 if [ "${1:-}" = --runtime-version ]; then
-	printf '2\n'
+	printf '3\n'
 	exit 0
 fi
 
@@ -56,6 +56,7 @@ while [ "${1:-}" != -- ]; do
 	config/*) root="$XDG_CONFIG_HOME" ;;
 	cache/*) root="$XDG_CACHE_HOME" ;;
 	data/*) root="$XDG_DATA_HOME" ;;
+	home/.agents) root="$HOME" ;;
 	*) printf 'ox: invalid shared directory argument\n' >&2; exit 2 ;;
 	esac
 	link_directory "$2" "$root/${1#*/}"

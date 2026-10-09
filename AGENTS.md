@@ -28,6 +28,7 @@ shellcheck build-image.sh install.sh opencode/entrypoint.sh opencode/update-tool
 fish -n opencode/ocd.fish pi/pid.fish ox/ox.fish cod/cod.fish
 python3 -B -m unittest discover -s ox/tests -v
 python3 -B -m unittest discover -s opencode/tests -v
+python3 -B -m unittest discover -s pi/tests -v
 python3 -B -m unittest discover -s cod/tests -v
 ```
 

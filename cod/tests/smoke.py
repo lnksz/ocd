@@ -9,6 +9,7 @@ from pathlib import Path
 
 CHECK = r'''
 import json
+import errno
 import os
 from pathlib import Path
 import pwd
@@ -27,6 +28,15 @@ assert (state / "AGENTS.override.md").read_text() == "OpenCode is the leading co
 assert (state / "config.toml").read_text() == 'model_reasoning_effort = "medium"\n'
 (state / "smoke-state").write_text("persistent")
 assert (home / ".agents/skills/example/SKILL.md").is_file()
+assert (home / ".agents/skills/shared/SKILL.md").is_file()
+assert (home / ".agents/references/guide.md").read_text() == "Shared reference.\n"
+for path in (home / ".agents/references/guide.md", home / ".agents/skills/shared/SKILL.md"):
+    try:
+        path.write_text("unexpected mutation")
+    except OSError as error:
+        assert error.errno == errno.EROFS, error
+    else:
+        raise AssertionError(f"Shared source is writable: {path}")
 assert (home / ".agents/skills/opencode-commands-review/SKILL.md").is_file()
 subprocess.run(["codex", "--version"], check=True)
 subprocess.run(["codex", "features", "list"], check=True, stdout=subprocess.DEVNULL)
@@ -49,7 +59,7 @@ try:
     server.stdin.flush()
     result = request(2, "skills/list", {"cwds": ["/workspace"], "forceReload": True})
     names = {skill["name"] for entry in result["data"] for skill in entry["skills"]}
-    assert {"example", "external", "opencode-commands-review", "opencode-agents-review"} <= names, result
+    assert {"example", "shared", "external", "opencode-commands-review", "opencode-agents-review"} <= names, result
 finally:
     server.terminate()
     server.wait(timeout=10)
@@ -63,6 +73,8 @@ def main():
         root = Path(temporary)
         root.chmod(0o755)
         source = root / "opencode"
+        shared = root / "shared-agents"
+        shared_skills = root / "shared-skills"
         state = root / "state"
         workspace = root / "workspace"
         state.mkdir(mode=0o777)
@@ -88,6 +100,11 @@ def main():
         external.mkdir()
         (external / "SKILL.md").write_text("---\nname: external\ndescription: Symlinked skill\n---\nExample.\n")
         (source / "skills/external").symlink_to(external, target_is_directory=True)
+        (shared / "references").mkdir(parents=True)
+        (shared / "references/guide.md").write_text("Shared reference.\n")
+        (shared_skills / "shared").mkdir(parents=True)
+        (shared_skills / "shared/SKILL.md").write_text("---\nname: shared\ndescription: Shared skill\n---\nShared.\n")
+        (shared / "skills").symlink_to(shared_skills, target_is_directory=True)
         subprocess.run(["git", "init", "-q", str(workspace)], check=True)
         if os.getuid() == 0:
             for path in workspace.rglob("*"):
@@ -98,6 +115,9 @@ def main():
                    "-e", "CODEX_HOME=/var/lib/codex", "-w", "/workspace",
                    "-v", f"{workspace}:/workspace", "-v", f"{state}:/var/lib/codex",
                    "-v", f"{source}:/tmp/cod-opencode:ro",
+                   "-v", f"{shared}:/tmp/cod-agents:ro",
+                   "-v", f"{shared_skills}:/tmp/cod-shared-skills:ro",
+                   "-v", f"{shared_skills}:{shared_skills}:ro",
                    "-v", f"{external}:/tmp/cod-opencode/skills/external:ro",
                    "-v", f"{source}/AGENTS.md:/var/lib/codex/AGENTS.override.md:ro",
                    image, "python3", "-"]

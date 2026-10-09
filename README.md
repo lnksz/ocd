@@ -114,6 +114,7 @@ OpenCode remains the source for shared instructions:
 | `$XDG_CONFIG_HOME/opencode/commands/**/*.md` | Explicit skills named `opencode-commands-<name>` |
 | `$XDG_CONFIG_HOME/opencode/agents/**/*.md` | Explicit skills named `opencode-agents-<name>` |
 | `~/.agents/skills/` | Shared user skills; OpenCode wins for matching directory names |
+| Other files in `~/.agents/` | Read-only links in the ephemeral `~/.agents/` directory |
 | `$XDG_CONFIG_HOME/opencode/config.env` | Environment values applied after Codex's `config.env`, so OpenCode wins |
 
 `XDG_CONFIG_HOME` defaults to `~/.config`. Optional sources are used only when
@@ -140,7 +141,13 @@ environment values through `config.env`.
 
 All wrappers default to 60% of host CPU and RAM. Their agent-specific overrides are `<AGENT>_CPU_PERCENT`, `<AGENT>_MEMORY_PERCENT`, `<AGENT>_CPUS`, and `<AGENT>_MEMORY` (`OCD_*`, `PID_*`, or `COD_*`).
 
-`ocd` persists its XDG `opencode/` configuration, cache, and data. `pid` persists `~/.pi/agent`, mounts `~/.agents`, and reuses OpenCode skills plus its commands and agent prompts as Pi prompt templates when those directories exist. Both reuse GitHub CLI/Copilot auth when available and support linked Git worktrees.
+`ocd` persists its XDG `opencode/` configuration, cache, and data. `pid` persists `~/.pi/agent` and reuses OpenCode skills plus its commands and agent prompts as Pi prompt templates when those directories exist. Both reuse GitHub CLI/Copilot auth when available and support linked Git worktrees.
+
+All four wrappers mount the global `~/.agents/` folder read-only when present,
+including external targets of symlinked skills. OpenCode, Codex, and Pi discover
+shared skills in `~/.agents/skills/`. Codex mounts the source at `/tmp/cod-agents`
+and exposes its contents through its ephemeral home, preserving OpenCode skill
+precedence. Missing shared folders are neither created nor mounted.
 
 All wrappers create an ephemeral container account matching the host UID/GID
 before starting the agent. The account has passwordless `sudo` so agents can
@@ -179,6 +186,8 @@ hadolint cod/Dockerfile
 shellcheck build-image.sh install.sh opencode/entrypoint.sh opencode/update-tools.sh pi/entrypoint.sh ox/session.sh cod/entrypoint.sh cod/codex.sh
 fish -n opencode/ocd.fish pi/pid.fish ox/ox.fish cod/cod.fish
 python3 -B -m unittest discover -s ox/tests -v
+python3 -B -m unittest discover -s opencode/tests -v
+python3 -B -m unittest discover -s pi/tests -v
 python3 -B -m unittest discover -s cod/tests -v
 docker build -f cod/Dockerfile -t cod:dev cod
 python3 cod/tests/smoke.py cod:dev

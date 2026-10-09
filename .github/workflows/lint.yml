@@ -63,6 +63,9 @@ jobs:
       - name: Test Codex integration
         run: python3 -m unittest discover -s cod/tests -v
 
+      - name: Test Pi shared agent mounts
+        run: python3 -m unittest discover -s pi/tests -v
+
   cod-smoke:
     name: Codex image smoke test
     runs-on: ubuntu-latest
