@@ -78,17 +78,18 @@ class InstallationBoundaryTests(unittest.TestCase):
             python.write_text(f"#!/bin/sh\nexit {0 if verified else 1}\n")
             python.chmod(0o755)
             effects = root / "effects"
-            for name in ("sudo", "apt-get", "curl", "npm", "uv", "mkdir", "rm", "id"):
+            for name in ("sudo", "apt-get", "curl", "npm", "pipx", "uv", "mkdir", "rm", "id"):
                 path = binary / name
                 path.write_text('#!/bin/sh\nprintf "%s\\n" "$0" >> "$SIDE_EFFECTS"\nexit 99\n')
                 path.chmod(0o755)
             environment = dict(os.environ, PATH=f"{binary}:{os.environ['PATH']}", SIDE_EFFECTS=str(effects))
             for agent in ("opencode", "pi", "ox", "cod"):
-                with self.subTest(agent=agent):
-                    script = ROOT / agent / "skills/reverse-eng/scripts/install.sh"
-                    result = subprocess.run(["bash", str(script), mode], env=environment,
-                                            capture_output=True, text=True, check=False)
-                    self.assertEqual(result.returncode, status, result.stderr)
-                    self.assertFalse(effects.exists(), "installer ran a side-effecting command")
-                    if not verified:
-                        self.assertIn("refusing installation/setup", result.stderr)
+                for skill in ("reverse-eng", "ansible"):
+                    with self.subTest(agent=agent, skill=skill):
+                        script = ROOT / agent / "skills" / skill / "scripts/install.sh"
+                        result = subprocess.run(["bash", str(script), mode], env=environment,
+                                                capture_output=True, text=True, check=False)
+                        self.assertEqual(result.returncode, status, result.stderr)
+                        self.assertFalse(effects.exists(), "installer ran a side-effecting command")
+                        if not verified:
+                            self.assertIn("refusing installation/setup", result.stderr)

@@ -198,6 +198,36 @@ checks, Codex integration tests, and a Codex image build/smoke test. The smoke
 test verifies host identity, sudo, persistent file ownership, global instructions,
 Git setup, and actual skill discovery through Codex's app server without login.
 
+## Lean default toolbox
+
+The images keep the selected native OpenCode and ast-grep executables and remove
+unused npm platform variants in the same installation layer. Build-time checks
+verify the retained commands. Hunkdiff is omitted from all four images.
+
+Ansible, ansible-lint, and the Ansible language server are also omitted. All four
+images provide an `ansible` skill through the same discovery paths as
+`reverse-eng`. For an Ansible task, the skill reuses existing tools or installs
+them on demand **inside a verified container only**:
+
+```bash
+bash /usr/local/share/agent-skills/ansible/scripts/install.sh --check
+bash /usr/local/share/agent-skills/ansible/scripts/install.sh --install
+```
+
+The installer pins Ansible 14.5.0, ansible-lint 26.10.0, and the language server
+26.6.0. It uses container-local pipx environments and npm commands, cleans its
+download caches, and refuses host installation before sudo or filesystem writes.
+Installation persists only for that container. Neither startup nor skill
+discovery installs tools or runs playbooks.
+
+To check the retained ast-grep commands and exercise Ansible installation,
+repeat setup, linting, and a localhost check-mode playbook in a disposable
+container:
+
+```bash
+python3 -B opencode/tests/smoke_toolbox.py ocd:dev --install-ansible
+```
+
 ## On-demand reverse engineering
 
 All four default images include the lightweight `reverse-eng` skill. They do

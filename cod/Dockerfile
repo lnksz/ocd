@@ -79,10 +79,12 @@ RUN set -euo pipefail; \
     npm --version
 
 # ---- ast-grep structural search and code outlines ----
+COPY prune-native-bins.py /usr/local/lib/prune-native-bins.py
 ARG AST_GREP_VERSION=0.45.3
 # hadolint ignore=DL3059
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install -g --include=optional --allow-scripts="@ast-grep/cli" "@ast-grep/cli@${AST_GREP_VERSION}" \
+    && python3 -B /usr/local/lib/prune-native-bins.py "$(npm root -g)/@ast-grep/cli" \
     && ast-grep --version \
     && ast-grep outline --help >/dev/null
 
@@ -154,12 +156,10 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
       yaml-language-server@1.24.0 \
       dockerfile-language-server-nodejs@0.15.0 \
       @taplo/cli@0.7.0 \
-      hunkdiff@0.21.0 \
       prettier@3.9.6 \
       eslint@10.9.1 \
       markdownlint-cli@0.49.1 \
-      pyright@1.1.413 \
-      @ansible/ansible-language-server@26.6.0
+      pyright@1.1.413
 
 # ---- Python toolchain ----
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
@@ -169,11 +169,9 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     && pipx install "isort==9.0.1" \
     && pipx install "mypy==2.3.1" \
     && pipx install "cmake-language-server==0.1.5" \
-    && pipx install "ansible==14.3.1" \
-    && pipx install "ansible-lint==26.8.0" \
     && pipx install "uv==0.12.9"
 
-# ---- On-demand container-only reverse engineering skill ----
+# ---- On-demand container-only tool skills ----
 COPY skills/ /usr/local/share/agent-skills/
 
 # ---- Go toolchain ----

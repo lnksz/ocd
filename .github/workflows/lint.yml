@@ -49,7 +49,9 @@ jobs:
         run: >-
           shellcheck build-image.sh opencode/entrypoint.sh
           opencode/update-tools.sh pi/entrypoint.sh ox/session.sh
-          cod/entrypoint.sh cod/codex.sh install.sh
+          cod/entrypoint.sh cod/codex.sh install.sh pi/pi.sh
+          opencode/link-builtin-skills.sh ox/link-builtin-skills.sh
+          {opencode,pi,ox,cod}/skills/{reverse-eng,ansible}/scripts/install.sh
 
       - name: Check Fish wrappers
         run: fish -n opencode/ocd.fish pi/pid.fish ox/ox.fish cod/cod.fish

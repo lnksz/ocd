@@ -79,10 +79,12 @@ RUN set -euo pipefail; \
     npm --version
 
 # ---- ast-grep structural search and code outlines ----
+COPY prune-native-bins.py /usr/local/lib/prune-native-bins.py
 ARG AST_GREP_VERSION=0.50.0
 # hadolint ignore=DL3059
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install -g --include=optional --allow-scripts="@ast-grep/cli" "@ast-grep/cli@${AST_GREP_VERSION}" \
+    && python3 -B /usr/local/lib/prune-native-bins.py "$(npm root -g)/@ast-grep/cli" \
     && ast-grep --version \
     && ast-grep outline --help >/dev/null
 
@@ -170,6 +172,7 @@ ARG OPENCODE_VERSION=2.0.28
 # hadolint ignore=DL3059
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install -g --allow-scripts="${OPENCODE_PKG}" "${OPENCODE_PKG}@${OPENCODE_VERSION}" \
+    && python3 -B /usr/local/lib/prune-native-bins.py "$(npm root -g)/${OPENCODE_PKG}" \
     && opencode --version \
     && \
     # Install pnpm/yarn directly from npm to avoid corepack's extra Yarn registry lookup.
@@ -182,19 +185,12 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
       yaml-language-server@1.25.0 \
       dockerfile-language-server-nodejs@0.15.0 \
       @taplo/cli@0.7.0 \
-      hunkdiff@0.23.0 \
       prettier@3.9.10 \
       eslint@10.12.0 \
       markdownlint-cli@0.49.1 \
-      pyright@1.1.414 \
-      \
-      # Ansible LSP (see note below)
-      @ansible/ansible-language-server@26.6.0
+      pyright@1.1.414
 
-# NOTE: If @ansible/ansible-language-server ever fails to resolve on your system,
-# replace it with a known working package name used in your environment.
-
-# ---- Python toolchain + LSP + linters/formatters + Ansible ----
+# ---- Python toolchain + LSP + linters/formatters ----
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     pipx install "python-lsp-server[all]==1.15.0" \
     && pipx install "ruff==0.17.0" \
@@ -202,11 +198,9 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     && pipx install "isort==9.0.2" \
     && pipx install "mypy==2.4.0" \
     && pipx install "cmake-language-server==0.1.5" \
-    && pipx install --include-deps "ansible==14.5.0" \
-    && pipx install "ansible-lint==26.10.0" \
     && pipx install "uv==0.13.0"
 
-# ---- On-demand container-only reverse engineering skill ----
+# ---- On-demand container-only tool skills ----
 COPY skills/ /usr/local/share/agent-skills/
 
 COPY --chmod=0755 link-builtin-skills.sh /usr/local/lib/link-builtin-skills.sh

@@ -47,10 +47,12 @@ RUN set -eu; \
     rm -f /tmp/node.tar.xz /tmp/SHASUMS256.txt
 
 # ---- ast-grep structural search and code outlines ----
+COPY prune-native-bins.py /usr/local/lib/prune-native-bins.py
 ARG AST_GREP_VERSION=0.45.3
 # hadolint ignore=DL3059
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install -g --include=optional --allow-scripts="@ast-grep/cli" "@ast-grep/cli@${AST_GREP_VERSION}" \
+    && python3 -B /usr/local/lib/prune-native-bins.py "$(npm root -g)/@ast-grep/cli" \
     && ast-grep --version \
     && ast-grep outline --help >/dev/null
 
@@ -90,8 +92,8 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
       typescript@7.0.2 typescript-language-server@6.0.0 \
       vscode-langservers-extracted@4.10.0 bash-language-server@5.6.0 \
       yaml-language-server@1.24.0 dockerfile-language-server-nodejs@0.15.0 \
-      @taplo/cli@0.7.0 hunkdiff@0.21.0 prettier@3.9.6 eslint@10.9.1 \
-      markdownlint-cli@0.49.1 pyright@1.1.413 @ansible/ansible-language-server@26.6.0
+      @taplo/cli@0.7.0 prettier@3.9.6 eslint@10.9.1 \
+      markdownlint-cli@0.49.1 pyright@1.1.413
 
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     pipx install "python-lsp-server[all]==1.15.0" \
@@ -100,11 +102,9 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     && pipx install "isort==9.0.1" \
     && pipx install "mypy==2.3.1" \
     && pipx install "cmake-language-server==0.1.5" \
-    && pipx install "ansible==14.3.1" \
-    && pipx install "ansible-lint==26.8.0" \
     && pipx install --force "uv==0.12.9"
 
-# ---- On-demand container-only reverse engineering skill ----
+# ---- On-demand container-only tool skills ----
 COPY skills/ /usr/local/share/agent-skills/
 
 COPY --chmod=0755 link-builtin-skills.sh /usr/local/lib/link-builtin-skills.sh
@@ -123,7 +123,9 @@ ARG OPENCODE_PKG=opencode-ai
 ARG OPENCODE_VERSION=latest
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install -g --prefix /usr/local/share/npm-global \
-      "${OPENCODE_PKG}@${OPENCODE_VERSION}" --include=optional
+      "${OPENCODE_PKG}@${OPENCODE_VERSION}" --include=optional \
+    && python3 -B /usr/local/lib/prune-native-bins.py "$(npm root -g --prefix /usr/local/share/npm-global)/${OPENCODE_PKG}" \
+    && opencode --version
 
 COPY --chmod=0755 session.sh /usr/local/bin/ox-session
 COPY tui.json /usr/local/share/ox/tui.json

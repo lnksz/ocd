@@ -122,7 +122,7 @@ sandbox-local files do not.
 | Symlinked config | Share commands/agents/skills directory targets; share the immediate parent of external `AGENTS.md` and `opencode.json[c]` file targets read-only |
 | Global `~/.agents/` | Optional read-only share linked into the agent home, including external symlinked skill targets |
 | Terminal | Forward `TERM`, `TERM_PROGRAM`, `COLORTERM`, and optional terminfo; disable OpenCode's terminal-suspend key through a sandbox-only TUI override |
-| Development toolbox | Fish, Node, C/C++, Python, Go, Ansible, LSPs, linters, Hunk, RTK and its plugin, Prek, GitHub/GitLab CLIs |
+| Development toolbox | Fish, Node, C/C++, Python, Go, ast-grep, LSPs, linters, RTK and its plugin, Prek, GitHub/GitLab CLIs; Ansible via a container-only on-demand skill |
 | Default resources | 60% RAM; 60% CPUs rounded down to whole vCPUs, minimum one |
 | Isolation | Dedicated microVM kernel and sandbox network controls |
 | Docker inside the agent | Private Docker Engine in the sandbox, without a host Docker socket mount |
@@ -343,7 +343,7 @@ XDG directories. Interactive TUI/provider behavior still needs a manual check.
 On a supported host, after building/importing, smoke-check with:
 
 ```fish
-ox -s -c 'id; pwd; command -v opencode fish node rtk hunk glab; sudo -n true; docker info'
+ox -s -c 'id; pwd; command -v opencode fish node rtk glab; sudo -n true; docker info'
 ox -s -c 'git status; test -w $XDG_DATA_HOME/opencode; and echo "OpenCode data writable"'
 ox
 ox --stop
