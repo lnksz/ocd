@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify installed REA and GhidraMCP against a native fixture, without credentials."""
+"""Install tools in a disposable container and verify native analysis without credentials."""
 
 import os
 from pathlib import Path
@@ -18,8 +18,8 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 assert os.getuid() != 0
-assert Path(os.environ["GHIDRA_INSTALL_DIR"], "Ghidra/Extensions/GhidraMCP/lib/GhidraMCP.jar").is_file()
-for name in ("reverse-engineer-anything", "ghidra-mcp"):
+assert Path("/opt/ghidra/Ghidra/Extensions/GhidraMCP/lib/GhidraMCP.jar").is_file()
+for name in ("reverse-eng", "reverse-engineer-anything"):
     assert Path("/usr/local/share/agent-skills", name, "SKILL.md").is_file()
 assert Path("/usr/local/share/agent-skills/reverse-engineer-anything/references/connection-and-recovery.md").is_file()
 root = Path.cwd()
@@ -60,13 +60,18 @@ def main():
         if os.getuid() == 0:
             os.chown(root, uid, gid)
         command = ["docker", "run", "--rm", "-i", "--init", "--cpus", "2", "--memory", "2g",
-                   "--user", f"{uid}:{gid}", "--entrypoint", "/opt/ghidra-mcp/.venv/bin/python",
+                   "--user", "0:0", "--entrypoint", "bash",
+                   "-e", f"HOST_UID={uid}", "-e", f"HOST_GID={gid}",
                    "-e", "HOME=/workspace/home", "-e", "GHIDRA_HEADLESS_MAXMEM=512M",
-                   "-v", f"{root}:/workspace", "-w", "/workspace", image, "-"]
+                   "-v", f"{root}:/workspace", "-w", "/workspace", image, "-e", "-c",
+                   'bash /usr/local/share/agent-skills/reverse-eng/scripts/install.sh --install >&2; '
+                   'bash /usr/local/share/agent-skills/reverse-eng/scripts/install.sh --install >&2; '
+                   'exec setpriv --reuid="$HOST_UID" --regid="$HOST_GID" --clear-groups '
+                   '/opt/ghidra-mcp/.venv/bin/python -']
         (root / "home").mkdir()
         if os.getuid() == 0:
             os.chown(root / "home", uid, gid)
-        subprocess.run(command, input=CHECK, text=True, check=True, timeout=360)
+        subprocess.run(command, input=CHECK, text=True, check=True, timeout=900)
 
 
 if __name__ == "__main__":

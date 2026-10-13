@@ -198,60 +198,46 @@ checks, Codex integration tests, and a Codex image build/smoke test. The smoke
 test verifies host identity, sudo, persistent file ownership, global instructions,
 Git setup, and actual skill discovery through Codex's app server without login.
 
-## Reverse engineering tools and skills
+## On-demand reverse engineering
 
-All four images include [REA](https://github.com/morluto/rea) 6.4.0,
-[Ghidra](https://github.com/NationalSecurityAgency/ghidra) 12.1.4, and
-[LaurieWired/GhidraMCP](https://github.com/LaurieWired/GhidraMCP) 2.0.
-Ghidra and MCP downloads are pinned and checked with SHA-256; the Python MCP
-client uses the release's source revision and frozen dependency lockfile.
-GhidraMCP runs in an isolated Python 3.13.15 environment so the images' system
-Python can evolve independently. Java 21 and the matching Ghidra extension
-are included. `GHIDRA_INSTALL_DIR=/opt/ghidra` and
-`REA_ANALYSIS_PROVIDER=ghidra` select the bundled native analysis engine;
-these environment defaults can be overridden.
+All four default images include the lightweight `reverse-eng` skill. They do
+not install REA, Ghidra, GhidraMCP, Java, or a separate Python runtime during
+build or startup. OpenCode and `ox` discover the skill through the ephemeral
+`~/.claude/skills/`; Codex includes it as a fallback in generated skills; Pi
+receives an explicit extra skill path. Existing user skills take precedence.
 
-The images bundle REA's matching `reverse-engineer-anything` skill, including
-its references, and a `ghidra-mcp` skill. OpenCode and `ox` discover them through
-links in the ephemeral `~/.claude/skills/`; Codex includes them as fallbacks
-when generating `~/.agents/skills/`; Pi receives explicit extra skill paths.
-Existing shared/OpenCode skill definitions take precedence. No setup command
-runs against mounted host configuration during build or startup.
-
-From the container shell:
+When a reverse-engineering task needs missing tools, the skill first checks for
+positive container evidence. **Outside a verified container, installation and
+setup are forbidden.** The bundled installer enforces this before sudo,
+package managers, downloads, or filesystem writes:
 
 ```bash
-rea --help
-rea doctor --json
-ghidra-headless -help
-ghidra-mcp --headless --binary /workspace/target
-# Retain annotations and other edits in a project:
-ghidra-mcp --headless --binary /workspace/target --project /workspace/ghidra-projects
+# Run these inside the agent container only.
+bash /usr/local/share/agent-skills/reverse-eng/scripts/install.sh --check
+bash /usr/local/share/agent-skills/reverse-eng/scripts/install.sh --install
 ```
 
-`ghidra` launches the GUI when a graphical display is available. Headless REA
-and GhidraMCP need no GUI or published ports. Temporary GhidraMCP projects
-discard changes; `--project` saves them on exit unless `--discard` is supplied.
-REA manages its own separate read-only analysis projects.
+The installer adds REA 6.4.0 with its matching upstream workflow skill,
+Ghidra 12.1.4, and LaurieWired/GhidraMCP 2.0 with its extension, Java 21, and an
+isolated Python 3.13.15 environment. Downloads are pinned and SHA-256 checked;
+the MCP environment uses the release's frozen dependency lockfile. It reuses
+its completed installation and refuses conflicting unmanaged paths. Tools go
+in container-local system paths, outside the workspace and host configuration.
+They disappear when a disposable container is removed. No host install or
+agent MCP registration runs automatically.
 
-CLI installation and skills do not register MCP servers in agent configuration.
-For MCP use, register `rea mcp` or a target-specific `ghidra-mcp --headless
---binary ...` command in the agent's configuration. Inspect the setup plan and
-its destination before applying `rea setup`, because some configuration paths
-are persistent host mounts. CLI use needs no MCP registration.
+The skill describes CLI analysis, headless MCP setup, ephemeral client
+configuration, and persistent analysis projects. Read its installed
+`SKILL.md` for those steps. Installation during a task incurs the toolchain's
+space and download cost; the default image carries only the small skill files.
 
-Rebuild each desired image using its existing build context; the new toolbox
-is installed by `install-reverse-engineering.sh` inside each agent directory.
-The Dockerfile build arguments pin the versions and checksums.
-
-The real-image smoke check compiles a small native fixture, decompiles it via
-REA, and initializes and calls the headless GhidraMCP stdio server as a non-root
+The optional smoke check installs the toolchain in a disposable container, then
+compiles and decompiles a native fixture via REA and GhidraMCP as a non-root
 user, without agent credentials:
 
 ```bash
 python3 -B opencode/tests/smoke_reverse_engineering.py ocd:dev
 ```
 
-It can also target another image tag with the same installed toolbox. On arm64,
-the installer builds Ghidra's native decompiler from the pinned release source;
-the current live smoke verification covers amd64.
+The current native verification covers amd64. The installer also builds the
+Ghidra native decompiler from pinned sources on arm64.
