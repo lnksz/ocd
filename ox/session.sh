@@ -71,6 +71,10 @@ if [ -r /usr/local/share/rtk/opencode-rtk.ts ]; then
 	install -m 0644 /usr/local/share/rtk/opencode-rtk.ts "$XDG_CONFIG_HOME/opencode/plugins/rtk.ts"
 fi
 
+if [ -x /usr/local/lib/link-builtin-skills.sh ]; then
+	/usr/local/lib/link-builtin-skills.sh
+fi
+
 # Trust only the current workspace, even if the host UID differs from agent.
 workspace="$(pwd -P)"
 if ! git config --global --get-all safe.directory | grep -Fxq "$workspace"; then

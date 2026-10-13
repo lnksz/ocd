@@ -22,7 +22,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
       ca-certificates curl wget openssl git git-lfs openssh-client gh glab \
       bash fish sudo util-linux neovim jq ripgrep fd-find fzf \
       unzip zip xz-utils procps psmisc parallel build-essential pkg-config \
-      python3 python3-pip python3-venv pipx golang-go \
+      python3 python3-pip python3-venv pipx openjdk-21-jdk libfreetype6 fontconfig golang-go \
       gdb lldb cmake ninja-build ccache clang clangd clang-format clang-tidy clang-tools \
       shellcheck shfmt yamllint universal-ctags tree file less man-db \
       dnsutils iproute2 netcat-openbsd lsof strace inotify-tools \
@@ -103,6 +103,25 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     && pipx install "ansible==14.3.1" \
     && pipx install "ansible-lint==26.8.0" \
     && pipx install --force "uv==0.12.9"
+
+# ---- Reverse engineering: REA + Ghidra + LaurieWired GhidraMCP v2 ----
+ARG REA_VERSION=6.4.0
+ARG GHIDRA_VERSION=12.1.4
+ARG GHIDRA_BUILD_DATE=20260921
+ARG GHIDRA_SHA256=ddac49f903da9d5bac833e5cc79395098b9c33cfd3279be5f31bd00387d2d4db
+ARG GHIDRA_MCP_VERSION=2.0
+ARG GHIDRA_MCP_SHA256=ebf904fd6782e429e95a60a24fe0724b20c0acb2dedb304135a5281f6b5f2e72
+ARG GHIDRA_MCP_REVISION=1e980252087b2479a21b9ca6d82d5829538651a7
+ARG GHIDRA_MCP_SOURCE_SHA256=bcea63344b900fc27db5347d8f34079cf2903b2f5a67582319b6eb5ff2f737e9
+ARG GHIDRA_MCP_PYTHON_VERSION=3.13.15
+ENV GHIDRA_INSTALL_DIR=/opt/ghidra \
+    JAVA_HOME=/opt/ghidra-java \
+    REA_ANALYSIS_PROVIDER=ghidra
+COPY --chmod=0755 install-reverse-engineering.sh /usr/local/lib/install-reverse-engineering.sh
+RUN /usr/local/lib/install-reverse-engineering.sh
+COPY skills/ /usr/local/share/agent-skills/
+
+COPY --chmod=0755 link-builtin-skills.sh /usr/local/lib/link-builtin-skills.sh
 
 ENV GOPATH=/opt/go
 RUN --mount=type=cache,target=/root/.cache/go-build,sharing=locked \

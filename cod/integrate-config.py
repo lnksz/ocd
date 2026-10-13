@@ -20,11 +20,15 @@ def integrate_agents(source: Path, destination: Path) -> None:
                 target.symlink_to(path, target_is_directory=path.is_dir())
 
 
-def integrate(source: Path, shared: Path, destination: Path) -> None:
+def integrate(
+    source: Path, shared: Path, destination: Path,
+    builtin: Path = Path("/usr/local/share/agent-skills"),
+) -> None:
     destination.mkdir(parents=True, exist_ok=True)
-    # OpenCode wins for the same directory name. Do not modify mounted sources.
+    # Bundled skills are fallbacks; shared skills override them, then OpenCode.
+    # Do not modify mounted sources.
     skills = {}
-    for root in (shared, source / "skills"):
+    for root in (builtin, shared, source / "skills"):
         if root.is_dir():
             skills.update((path.name, path) for path in sorted(root.iterdir()) if path.is_dir())
     for name, path in skills.items():

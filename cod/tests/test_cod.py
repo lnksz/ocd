@@ -61,6 +61,18 @@ class IntegrationTests(TemporaryTree):
         self.assertEqual((target / "other/SKILL.md").read_text(), "other")
         self.assertEqual((self.root / "shared/review/SKILL.md").read_text(), "shared")
 
+    def test_builtin_skills_are_fallbacks_and_keep_resources(self):
+        self.write("builtin/reverse-engineer-anything/SKILL.md", "bundled REA")
+        self.write("builtin/reverse-engineer-anything/references/guide.md", "reference")
+        self.write("builtin/ghidra-mcp/SKILL.md", "bundled Ghidra")
+        self.write("shared/ghidra-mcp/SKILL.md", "user Ghidra")
+        target = self.root / "result"
+        CONFIG.integrate(self.root / "opencode", self.root / "shared", target,
+                         self.root / "builtin")
+        self.assertEqual((target / "reverse-engineer-anything/references/guide.md").read_text(), "reference")
+        self.assertEqual((target / "ghidra-mcp/SKILL.md").read_text(), "user Ghidra")
+        self.assertEqual((self.root / "builtin/ghidra-mcp/SKILL.md").read_text(), "bundled Ghidra")
+
     def test_prompts_become_explicit_skills_with_nested_names(self):
         original = "---\ndescription: Review changes\nmodel: provider/model\nmode: subagent\n---\nReview $ARGUMENTS with $1.\n"
         source = self.write("opencode/commands/team/review.md", original)

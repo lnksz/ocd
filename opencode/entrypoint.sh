@@ -125,4 +125,8 @@ if command -v git >/dev/null 2>&1; then
 	fi
 fi
 
+if [ -x /usr/local/lib/link-builtin-skills.sh ]; then
+	/usr/local/lib/link-builtin-skills.sh
+fi
+
 exec "$@"
