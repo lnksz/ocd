@@ -10,7 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIPX_DEFAULT_PYTHON=python3 \
     EDITOR=nvim
 
-ARG NODE_VERSION=v24.20.0
+ARG NODE_VERSION=v24.22.1
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -79,7 +79,7 @@ RUN set -euo pipefail; \
     npm --version
 
 # ---- ast-grep structural search and code outlines ----
-ARG AST_GREP_VERSION=0.45.3
+ARG AST_GREP_VERSION=0.51.0
 # hadolint ignore=DL3059
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install -g --include=optional --allow-scripts="@ast-grep/cli" "@ast-grep/cli@${AST_GREP_VERSION}" \
@@ -105,9 +105,15 @@ RUN set -eu; \
     chmod +x /usr/local/bin/hadolint
 
 # ---- Prek (fast pre-commit alternative) ----
-ARG PREK_VERSION=v0.5.2
+ARG PREK_VERSION=v0.5.7
 RUN set -eu; \
-    archive="prek-x86_64-unknown-linux-gnu.tar.gz"; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+        amd64) prek_target=x86_64-unknown-linux-gnu ;; \
+        arm64) prek_target=aarch64-unknown-linux-gnu ;; \
+        *) echo "Unsupported arch for prek: $arch" >&2; exit 1 ;; \
+    esac; \
+    archive="prek-${prek_target}.tar.gz"; \
     url="https://github.com/j178/prek/releases/download/${PREK_VERSION}/${archive}"; \
     curl -fL --retry 6 --retry-delay 2 --retry-all-errors "$url" -o "/tmp/${archive}"; \
     curl -fL --retry 6 --retry-delay 2 --retry-all-errors "${url}.sha256" -o /tmp/prek.sha256; \
@@ -143,7 +149,7 @@ RUN set -eu; \
     rm -f /tmp/glab-release.json "/tmp/${asset_name}" /tmp/checksums.txt
 
 # ---- RTK command-line tool ----
-ARG RTK_VERSION=v0.47.0
+ARG RTK_VERSION=v0.52.0
 RUN set -eu; \
     arch="$(dpkg --print-architecture)"; \
     case "$arch" in \
@@ -160,7 +166,7 @@ RUN set -eu; \
 
 # ---- opencode (adjust package name/version if needed) ----
 ARG OPENCODE_PKG=@opencode/cli
-ARG OPENCODE_VERSION=2.0.22
+ARG OPENCODE_VERSION=2.2.0
 # hadolint ignore=DL3059
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install -g --allow-scripts="${OPENCODE_PKG}" "${OPENCODE_PKG}@${OPENCODE_VERSION}" \
@@ -168,19 +174,19 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     && \
     # Install pnpm/yarn directly from npm to avoid corepack's extra Yarn registry lookup.
     npm install -g \
-      pnpm@11.25.0 \
-      @yarnpkg/cli-dist@4.18.0 \
-      typescript@7.0.2 typescript-language-server@6.0.0 \
+      pnpm@11.28.9 \
+      @yarnpkg/cli-dist@4.18.1 \
+      typescript@7.0.2 typescript-language-server@6.0.2 \
       vscode-langservers-extracted@4.10.0 \
-      bash-language-server@5.6.0 \
-      yaml-language-server@1.24.0 \
+      bash-language-server@5.8.1 \
+      yaml-language-server@2.0.0 \
       dockerfile-language-server-nodejs@0.15.0 \
       @taplo/cli@0.7.0 \
-      hunkdiff@0.21.0 \
-      prettier@3.9.6 \
-      eslint@10.9.1 \
-      markdownlint-cli@0.49.1 \
-      pyright@1.1.413 \
+      hunkdiff@0.24.1 \
+      prettier@3.9.10 \
+      eslint@10.13.0 \
+      markdownlint-cli@0.50.0 \
+      pyright@1.1.414 \
       \
       # Ansible LSP (see note below)
       @ansible/ansible-language-server@26.6.0
@@ -191,14 +197,14 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
 # ---- Python toolchain + LSP + linters/formatters + Ansible ----
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     pipx install "python-lsp-server[all]==1.15.0" \
-    && pipx install "ruff==0.16.5" \
-    && pipx install "black==26.5.1" \
-    && pipx install "isort==9.0.1" \
-    && pipx install "mypy==2.3.1" \
+    && pipx install "ruff==0.17.3" \
+    && pipx install "black==26.10.1" \
+    && pipx install "isort==9.0.2" \
+    && pipx install "mypy==2.4.0" \
     && pipx install "cmake-language-server==0.1.5" \
-    && pipx install "ansible==14.3.1" \
-    && pipx install "ansible-lint==26.8.0" \
-    && pipx install "uv==0.12.9"
+    && pipx install --include-deps "ansible==14.5.0" \
+    && pipx install "ansible-lint==26.10.1" \
+    && pipx install "uv==0.13.6"
 
 # ---- Go LSP + linters/formatters ----
 ENV GOPATH=/opt/go
